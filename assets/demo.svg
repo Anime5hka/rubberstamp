@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="428" viewBox="0 0 1000 428" role="img" aria-label="rubberstamp output on a cart module: 3 of 6 functions can be hollowed out and every test still passes: applyCoupon when it returns its first argument unchanged, saveCart when it does nothing, formatPrice when it returns undefined">
+<style>
+  .l { font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; fill: #c9d1d9; opacity: 0; animation: in .25s ease-out forwards; }
+  @keyframes in { to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .l { animation: none; opacity: 1; } }
+</style>
+<rect width="1000" height="428" rx="10" fill="#0d1117"/>
+<rect width="1000" height="30" rx="10" fill="#161b22"/>
+<rect y="20" width="1000" height="10" fill="#161b22"/>
+<circle cx="20" cy="15" r="6" fill="#ff5f56"/><circle cx="40" cy="15" r="6" fill="#ffbd2e"/><circle cx="60" cy="15" r="6" fill="#27c93f"/>
+  <text x="20" y="52" class="l" style="animation-delay:0.00s" xml:space="preserve"><tspan fill="#8b949e">$</tspan> npx rubberstamp -- node --test</text>
+  <text x="20" y="72" class="l" style="animation-delay:0.30s" xml:space="preserve"></text>
+  <text x="20" y="92" class="l" style="animation-delay:0.90s" xml:space="preserve">  <tspan fill="#8b949e">2 modules, 6 exported functions, 6 called by the tests</tspan></text>
+  <text x="20" y="112" class="l" style="animation-delay:1.02s" xml:space="preserve"></text>
+  <text x="20" y="132" class="l" style="animation-delay:1.14s" xml:space="preserve"><tspan fill="#ff7b72">✗</tspan> <tspan font-weight="700" fill="#f0f6fc">3 of 6 functions can be hollowed out and every test still passes</tspan></text>
+  <text x="20" y="152" class="l" style="animation-delay:1.26s" xml:space="preserve"></text>
+  <text x="20" y="172" class="l" style="animation-delay:1.38s" xml:space="preserve">  <tspan font-weight="700" fill="#f0f6fc">applyCoupon()</tspan>  <tspan fill="#8b949e">cart.js:7</tspan></text>
+  <text x="20" y="192" class="l" style="animation-delay:1.50s" xml:space="preserve">      <tspan fill="#ff7b72">tests still pass when it returns its first argument unchanged</tspan></text>
+  <text x="20" y="212" class="l" style="animation-delay:1.62s" xml:space="preserve">      <tspan fill="#8b949e">called from cart.test.js:19</tspan></text>
+  <text x="20" y="232" class="l" style="animation-delay:1.74s" xml:space="preserve">  <tspan font-weight="700" fill="#f0f6fc">saveCart()   </tspan>  <tspan fill="#8b949e">cart.js:21</tspan></text>
+  <text x="20" y="252" class="l" style="animation-delay:1.86s" xml:space="preserve">      <tspan fill="#ff7b72">tests still pass when it does nothing</tspan></text>
+  <text x="20" y="272" class="l" style="animation-delay:1.98s" xml:space="preserve">      <tspan fill="#8b949e">called from cart.test.js:30</tspan></text>
+  <text x="20" y="292" class="l" style="animation-delay:2.10s" xml:space="preserve">  <tspan font-weight="700" fill="#f0f6fc">formatPrice()</tspan>  <tspan fill="#8b949e">price.js:1</tspan></text>
+  <text x="20" y="312" class="l" style="animation-delay:2.22s" xml:space="preserve">      <tspan fill="#ff7b72">tests still pass when it returns undefined, or when it returns its first argument unchanged</tspan></text>
+  <text x="20" y="332" class="l" style="animation-delay:2.34s" xml:space="preserve">      <tspan fill="#8b949e">called from cart.test.js:25</tspan></text>
+  <text x="20" y="352" class="l" style="animation-delay:2.46s" xml:space="preserve"></text>
+  <text x="20" y="372" class="l" style="animation-delay:2.58s" xml:space="preserve">  <tspan fill="#7ee787">3 caught</tspan> <tspan fill="#8b949e">·</tspan> <tspan fill="#ff7b72">3 rubber-stamped</tspan> <tspan fill="#8b949e">· 50% of the functions your tests call are really checked</tspan></text>
+  <text x="20" y="392" class="l" style="animation-delay:2.70s" xml:space="preserve">  <tspan fill="#8b949e">A rubber-stamped function runs in your tests, but no assertion depends on what it returns or does.</tspan></text>
+</svg>

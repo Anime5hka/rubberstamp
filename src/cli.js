@@ -150,8 +150,8 @@ export async function main(argv, { out = process.stdout, err = process.stderr, c
     const width = Math.max(...survivors.map((r) => r.function.length));
     for (const r of survivors) {
       say(`  ${c('bold', r.function.padEnd(width))}  ${c('gray', r.at)}\n`);
-      say(`  ${' '.repeat(width)}  ${c('red', `tests still pass when it ${r.survived.join(', or when it ')}`)}\n`);
-      say(`  ${' '.repeat(width)}  ${c('gray', r.calledFrom.length ? `called from ${r.calledFrom.join(', ')}` : 'called by your code (no test file on the stack: a callback or after an await)')}\n`);
+      say(`      ${c('red', `tests still pass when it ${r.survived.join(', or when it ')}`)}\n`);
+      say(`      ${c('gray', r.calledFrom.length ? `called from ${r.calledFrom.join(', ')}` : 'called by your code (no test file on the stack: a callback or after an await)')}\n`);
     }
     const caught = results.length - survivors.length;
     say(`\n  ${c('green', `${caught} caught`)} ${c('gray', '·')} ${c('red', `${survivors.length} rubber-stamped`)} ${c('gray', `· ${Math.round((caught / results.length) * 100)}% of the functions your tests call are really checked`)}\n`);
