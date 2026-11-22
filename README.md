@@ -79,7 +79,7 @@ From the [cart example](examples/cart):
 | `formatPrice(cents)` | `formatTotal(cart).startsWith('Total:')` | returns `undefined` | `"Total: undefined"` starts with `Total:` |
 | `total`, `addItem`, `formatTotal` | real assertions | — | caught ✓ |
 
-**In the wild.** We ran rubberstamp on our own [raceloom](https://github.com/Anime5hka/raceloom) (39 tests). It found `formatError()`: every test still passed when it returned the error object itself, because a template string turns an `Error` into `"AssertionError: ..."` anyway. The one-line summary it exists for was never checked. [Fixed with two tests](https://github.com/Anime5hka/raceloom/blob/main/test/format.test.js).
+**In the wild.** We ran rubberstamp on our own [raceloom](https://github.com/Anime5hka/raceloom) (39 tests). It found `formatError()`: every test still passed when it returned the error object itself, because a template string turns an `Error` into `"AssertionError: ..."` anyway. The one-line summary it exists for was never checked. [Fixed with two tests](https://github.com/Anime5hka/raceloom/blob/main/test/format.test.js). On [sqlloom](https://github.com/Anime5hka/sqlloom) (a 6-minute suite against a real Postgres) it found `dbError()`, which digs the Postgres error out of an ORM's wrapper: it could return `undefined` and all 29 tests still passed. [Fixed](https://github.com/Anime5hka/sqlloom/blob/main/test/errors.test.js).
 
 ## How it compares
 
