@@ -13,7 +13,8 @@
   },
   "files": [
     "bin",
-    "src"
+    "src",
+    "skills"
   ],
   "scripts": {
     "test": "node --test --test-concurrency=1 test/*.test.js"

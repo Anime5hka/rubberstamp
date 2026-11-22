@@ -21,6 +21,7 @@
   <a href="#quick-start">Quick start</a> ·
   <a href="#setup">Setup</a> ·
   <a href="#what-it-finds">What it finds</a> ·
+  <a href="#use-it-from-ai-coding-agents">AI agents</a> ·
   <a href="#how-it-compares">How it compares</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#options">Options</a> ·
@@ -80,6 +81,16 @@ From the [cart example](examples/cart):
 | `total`, `addItem`, `formatTotal` | real assertions | — | caught ✓ |
 
 **In the wild.** We ran rubberstamp on our own [raceloom](https://github.com/Anime5hka/raceloom) (39 tests). It found `formatError()`: every test still passed when it returned the error object itself, because a template string turns an `Error` into `"AssertionError: ..."` anyway. The one-line summary it exists for was never checked. [Fixed with two tests](https://github.com/Anime5hka/raceloom/blob/main/test/format.test.js). It also found `Sim#clearInterval()`: a test called it, but nothing checked that the interval stopped. On [sqlloom](https://github.com/Anime5hka/sqlloom) (a 6-minute suite against a real Postgres) it found `dbError()`, which digs the Postgres error out of an ORM's wrapper: it could return `undefined` and all 29 tests still passed. [Fixed](https://github.com/Anime5hka/sqlloom/blob/main/test/errors.test.js).
+
+## Use it from AI coding agents
+
+Agents write a lot of tests that can't fail. [`skills/rubberstamp/SKILL.md`](skills/rubberstamp/SKILL.md) is an agent skill that teaches Claude Code (and other agents that read `SKILL.md`) to check their tests with rubberstamp and to strengthen the weak ones instead of adding trivial new ones. Install it for your user:
+
+```sh
+mkdir -p ~/.claude/skills/rubberstamp && curl -fsSL https://raw.githubusercontent.com/Anime5hka/rubberstamp/main/skills/rubberstamp/SKILL.md -o ~/.claude/skills/rubberstamp/SKILL.md
+```
+
+Then ask: *"do the tests for the cart module actually check anything?"*
 
 ## How it compares
 
@@ -141,7 +152,7 @@ Exit code: `0` if every called function is caught, `1` if any is rubber-stamped 
 - [ ] Re-run only the test files that call the function (much faster on big suites)
 - [ ] `--changed`: only functions touched since a git ref, for PR checks
 - [ ] A GitHub Action that comments the rubber-stamped functions on a PR
-- [ ] An agent skill: "after writing tests, check them with rubberstamp"
+- [x] An agent skill: "after writing tests, check them with rubberstamp"
 
 ## See also
 
