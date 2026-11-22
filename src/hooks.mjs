@@ -54,6 +54,8 @@ export function wrapperSource(url, fnNames = [], hasDefault = false, origSpecifi
     // keep working. (In an import cycle the original may not exist yet; then there's nothing to copy.)
     lines.push(`try { for (const k of Reflect.ownKeys(m[${n}])) if (k !== 'length' && k !== 'arguments' && k !== 'caller') Object.defineProperty(${fn}, k, Object.getOwnPropertyDescriptor(m[${n}], k)); } catch {}`);
   });
+  // Methods of exported objects and classes are wrapped in place, once the original has run.
+  lines.push(`rs?.members(${u}, m);`);
   // `export *` never re-exports a default, so pass it through when it isn't wrapped.
   if (hasDefault && !fnNames.includes('default')) lines.push('export default m.default;');
   return lines.join('\n');

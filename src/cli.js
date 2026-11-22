@@ -121,14 +121,14 @@ export async function main(argv, { out = process.stdout, err = process.stderr, c
     progress();
     const runs = await pool(mutants.map((m) => () => runOnce(command, {
       phase: 'mutant', root: cwd, namesFile, timeout,
-      target: `${m.f.url}#${m.f.name}#${m.f.async ? 'async' : 'sync'}#${m.mode}`,
+      target: JSON.stringify({ url: m.f.url, name: m.f.name, async: m.f.async, mode: m.mode }),
     })), o.concurrency, () => { done++; progress(); });
     if (!o.json && out.isTTY) out.write('\r\x1b[K');
 
     const results = called.map((f) => {
       const mine = mutants.map((m, i) => ({ m, run: runs[i] })).filter((x) => x.m.f === f);
       return {
-        function: f.name === 'default' ? 'default export' : `${f.name}()`,
+        function: f.name === 'default' ? 'default export' : `${f.name.replace(/^default([.#])/, 'default export$1')}()`,
         at: where(f.url, f.name, cwd),
         calledFrom: f.sites,
         caught: mine.every((x) => !x.run.passed),

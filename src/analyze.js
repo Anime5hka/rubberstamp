@@ -35,6 +35,13 @@ const escape = (s) => s.replace(/[$]/g, '\\$');
 
 /** 1-based line where `name` is defined in the module's source, or null. */
 export function definitionLine(source, name) {
+  if (/[.#]/.test(name)) {
+    // api.get / Cart#total / Cart.create: the method, as `get(`, `get: (`, `get = (` or `get: function`
+    const m = escape(name.split(/[.#]/).pop());
+    const re = new RegExp(`^\\s*(?:static\\s+)?(?:async\\s+)?\\*?\\s*${m}\\s*(?:\\(|[:=]\\s*(?:async\\s*)?(?:function\\b|\\(|[\\w$]+\\s*=>))`);
+    const i = source.split('\n').findIndex((l) => re.test(l));
+    return i >= 0 ? i + 1 : null;
+  }
   const n = escape(name);
   const patterns = name === 'default'
     ? [/export\s+default\b/]

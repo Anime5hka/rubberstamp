@@ -64,6 +64,18 @@ test('barrel default re-exports, constructors (instanceof) and functions with pr
   assert.equal(functions.find((f) => f.function === 'memo()').caught, true);
 });
 
+test('methods of exported objects and classes (prototype and static)', () => {
+  const r = cli(['--json', '--', process.execPath, '--test'], join(root, 'test', 'fixtures', 'members'));
+  assert.equal(r.code, 1, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout).functions.map((f) => [f.function, f.at, f.caught]), [
+    ['Cart.empty()', 'shop.js:10', true],
+    ['Cart#add()', 'shop.js:8', true],
+    ['Cart#total()', 'shop.js:9', false],
+    ['prices.label()', 'shop.js:3', false],
+    ['prices.net()', 'shop.js:2', true],
+  ]);
+});
+
 test('a suite that fails without rubberstamp is reported, not analysed', () => {
   const r = cli(['--', process.execPath, '-e', 'process.exit(3)'], root);
   assert.equal(r.code, 1);

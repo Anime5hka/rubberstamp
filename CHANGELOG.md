@@ -5,6 +5,7 @@
 First release.
 
 - `rubberstamp -- <test command>`: finds the exported functions your tests call but never check, by re-running the suite with each one hollowed out.
+- Exported functions, plus methods of exported objects (`api.get`) and classes (`Cart#total`, `Cart.create`).
 - Two ways to hollow: return `undefined` (or do nothing; a resolved `undefined` for async functions), and return the first argument unchanged.
 - Reports where each function is defined and the test lines that call it.
 - node:test and mocha with no setup; a vitest plugin (`rubberstamp/vitest`) and a jest transformer (`rubberstamp/jest`).

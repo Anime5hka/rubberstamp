@@ -36,7 +36,7 @@ function installHandlers() {
  * @param {'names'|'calls'|'mutant'} o.phase
  * @param {string} o.root           project directory (whose modules count as "yours")
  * @param {string} [o.namesFile]    JSON { moduleUrl: [function names] } from the names phase
- * @param {string} [o.target]       'url#name#async|sync' for the mutant phase
+ * @param {string} [o.target]       JSON { url, name, async, mode } for the mutant phase
  * @param {number} [o.timeout]      ms, 0 = none
  */
 export async function runOnce(command, o) {

@@ -129,14 +129,14 @@ Exit code: `0` if every called function is caught, `1` if any is rubber-stamped 
 
 ## Caveats
 
-- **Exported functions only.** Private helpers are covered through the exports that call them. Class methods aren't hollowed yet.
+- **Exported functions and the methods of exported objects and classes.** Private helpers are covered through the exports that call them. Getters, setters and frozen objects are left alone.
 - **A flaky suite gives flaky answers.** A random failure in a hollow run counts as "caught". If your suite is flaky, fix that first ([shakeout](https://github.com/Anime5hka/shakeout) can help).
 - **Side effects at import time** run once per test run, like they do now.
 - **jest**: CommonJS mode through babel-jest. Native ESM mode (`--experimental-vm-modules`) and ts-jest aren't supported yet.
 
 ## Roadmap
 
-- [ ] Class methods and object-literal methods (`export const api = { get() {} }`)
+- [x] Class methods (`Cart#total`, static `Cart.create`) and object-literal methods (`api.get`)
 - [ ] More ways to hollow: `return 0` / `''` / `[]` / `false` by the type the function normally returns
 - [ ] Re-run only the test files that call the function (much faster on big suites)
 - [ ] `--changed`: only functions touched since a git ref, for PR checks

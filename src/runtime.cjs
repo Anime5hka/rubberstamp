@@ -16,8 +16,8 @@ const isClass = (fn) => /^class[\s{]/.test(Function.prototype.toString.call(fn))
 function create(env = process.env) {
   const phase = env.RUBBERSTAMP_PHASE;
   const root = env.RUBBERSTAMP_ROOT || process.cwd();
-  // url#name#async|sync#undefined|identity
-  const [targetUrl, targetName, targetAsync, targetMode] = (env.RUBBERSTAMP_TARGET || '').split('#');
+  // { url, name, async, mode: 'undefined' | 'identity' }
+  const target = env.RUBBERSTAMP_TARGET ? JSON.parse(env.RUBBERSTAMP_TARGET) : {};
 
   const records = new Map(); // key -> record
   const put = (key, init) => {
@@ -54,21 +54,24 @@ function create(env = process.env) {
     if (phase !== 'names') return;
     const rec = put(url, () => ({ type: 'module', url, fns: [] }));
     const before = rec.fns.length;
+    const add = (owned, name) => {
+      if (!owner.has(owned)) owner.set(owned, url);
+      if (owner.get(owned) === url && !rec.fns.includes(name)) rec.fns.push(name);
+    };
     for (const [k, v] of Object.entries(m)) {
-      if (typeof v !== 'function' || isClass(v)) continue;
-      if (!owner.has(v)) owner.set(v, url);
-      if (owner.get(v) === url && !rec.fns.includes(k)) rec.fns.push(k);
+      if (typeof v === 'function' && !isClass(v)) add(v, k);
+      for (const slot of memberSlots(k, v)) add(v, slot.name);
     }
     if (rec.fns.length !== before) emit(rec);
   }
 
-  const hollows = (url, name) => phase === 'mutant' && url === targetUrl && name === targetName;
+  const hollows = (url, name) => phase === 'mutant' && url === target.url && name === target.name;
 
   /** One call of a wrapped function: hollow, recorded, or just passed through. */
   function invoke(url, name, fn, thisArg, args, newTarget) {
     if (hollows(url, name)) {
-      const value = targetMode === 'identity' ? args[0] : undefined;
-      return targetAsync === 'async' ? Promise.resolve(value) : value;
+      const value = target.mode === 'identity' ? args[0] : undefined;
+      return target.async ? Promise.resolve(value) : value;
     }
     const result = newTarget ? Reflect.construct(fn, args) : Reflect.apply(fn, thisArg, args);
     if (phase === 'calls') record(url, name, args, result);
@@ -104,19 +107,41 @@ function create(env = process.env) {
     });
   }
 
+  const done = new WeakSet();
+
+  /**
+   * Methods of exported objects and classes are wrapped in place (objects are mutable, unlike a
+   * module's exports), so calls from inside the module go through the wrapper too.
+   */
+  function members(url, m) {
+    for (const [k, v] of Object.entries(m)) {
+      // A re-exported object is wrapped once, by the module that defines it (it runs first).
+      for (const { obj, key, name } of memberSlots(k, v)) {
+        const fn = obj[key];
+        if (done.has(fn)) continue;
+        const w = wrap(url, name, fn);
+        if (w === fn) continue;
+        done.add(w);
+        try { obj[key] = w; } catch {}
+      }
+    }
+  }
+
   /** A CommonJS module's exports, with its functions wrapped (the object is changed in place). */
   function wrapExports(url, exp) {
     if (typeof exp === 'function') {
       seen(url, { default: exp });
-      return wrap(url, 'default', exp);
+      members(url, { default: exp });
+      return isClass(exp) ? exp : wrap(url, 'default', exp);
     }
     if (!exp || typeof exp !== 'object') return exp;
     seen(url, exp);
+    members(url, exp);
     for (const key of Object.keys(exp)) {
       const d = Object.getOwnPropertyDescriptor(exp, key);
       if (!d) continue;
       if ('value' in d) {
-        if (typeof d.value === 'function' && d.writable) exp[key] = wrap(url, key, d.value);
+        if (typeof d.value === 'function' && !isClass(d.value) && d.writable) exp[key] = wrap(url, key, d.value);
       } else if (d.get && d.configurable) {
         // Compiled ES modules (TypeScript, esbuild) export through getters.
         const get = d.get;
@@ -135,7 +160,30 @@ function create(env = process.env) {
     return exp;
   }
 
-  return { phase, seen, wrap, invoke, wrapExports };
+  return { phase, seen, wrap, invoke, members, wrapExports };
+}
+
+const PLAIN = new Set([Object.prototype, null]);
+const SKIP_STATIC = new Set(['length', 'name', 'prototype', 'arguments', 'caller']);
+
+/**
+ * The methods of an exported value that rubberstamp hollows: `api.get` for a plain object's
+ * function properties, `Cart#total` for a class's prototype methods, `Cart.create` for its
+ * static ones. Only writable data properties (never getters, never frozen objects).
+ */
+function memberSlots(exportName, v) {
+  const out = [];
+  const take = (obj, key, name) => {
+    const d = Object.getOwnPropertyDescriptor(obj, key);
+    if (d && 'value' in d && d.writable && typeof d.value === 'function' && !isClass(d.value)) out.push({ obj, key, name });
+  };
+  if (v && typeof v === 'object' && PLAIN.has(Object.getPrototypeOf(v)) && !Object.isFrozen(v)) {
+    for (const key of Object.keys(v)) take(v, key, `${exportName}.${key}`);
+  } else if (typeof v === 'function' && isClass(v)) {
+    for (const key of Object.getOwnPropertyNames(v.prototype)) if (key !== 'constructor') take(v.prototype, key, `${exportName}#${key}`);
+    for (const key of Object.getOwnPropertyNames(v)) if (!SKIP_STATIC.has(key)) take(v, key, `${exportName}.${key}`);
+  }
+  return out;
 }
 
 /** Is this one of the user's own modules (not a dependency, not a test, not rubberstamp)? */
