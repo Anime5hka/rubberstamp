@@ -46,12 +46,18 @@ function create(env = process.env) {
     return null;
   }
 
+  // A function re-exported by another module of yours (an index.js barrel) belongs to the module
+  // that defines it, which always runs first.
+  const owner = new WeakMap();
+
   function seen(url, m) {
     if (phase !== 'names') return;
     const rec = put(url, () => ({ type: 'module', url, fns: [] }));
     const before = rec.fns.length;
     for (const [k, v] of Object.entries(m)) {
-      if (typeof v === 'function' && !isClass(v) && !rec.fns.includes(k)) rec.fns.push(k);
+      if (typeof v !== 'function' || isClass(v)) continue;
+      if (!owner.has(v)) owner.set(v, url);
+      if (owner.get(v) === url && !rec.fns.includes(k)) rec.fns.push(k);
     }
     if (rec.fns.length !== before) emit(rec);
   }

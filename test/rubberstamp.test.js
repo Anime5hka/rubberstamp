@@ -60,7 +60,7 @@ test('barrel default re-exports, constructors (instanceof) and functions with pr
   const r = cli(['--json', '--', process.execPath, '--test', 'a.test.js'], join(root, 'test', 'fixtures', 'shapes'));
   assert.equal([0, 1].includes(r.code), true, r.stderr);
   const { functions } = JSON.parse(r.stdout);
-  assert.deepEqual(functions.map((f) => f.function).sort(), ['Point()', 'default export', 'default export', 'memo()']);
+  assert.deepEqual(functions.map((f) => f.function).sort(), ['Point()', 'default export', 'memo()']);
   assert.equal(functions.find((f) => f.function === 'memo()').caught, true);
 });
 
