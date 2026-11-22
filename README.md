@@ -25,6 +25,7 @@
   <a href="#how-it-compares">How it compares</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#options">Options</a> ·
+  <a href="#in-ci">In CI</a> ·
   <a href="#faq">FAQ</a>
 </p>
 
@@ -128,6 +129,25 @@ rubberstamp [options] -- <test command...>
 | `--json` | Machine-readable result |
 
 Exit code: `0` if every called function is caught, `1` if any is rubber-stamped or the suite fails, `2` for usage errors.
+
+## In CI
+
+On pull requests, check only the functions the PR touches:
+
+```yaml
+# .github/workflows/rubberstamp.yml
+on: pull_request
+jobs:
+  rubberstamp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # --changed needs the base branch
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npx github:Anime5hka/rubberstamp --changed origin/${{ github.base_ref }} -- npm test
+```
 
 ## FAQ
 
