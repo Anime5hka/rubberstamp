@@ -4,7 +4,7 @@ import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir, availableParallelism } from 'node:os';
 import { join } from 'node:path';
 import { runOnce } from './runner.js';
-import { mergeNames, mergeCalls, where } from './analyze.js';
+import { mergeNames, mergeCalls, mutantsFor, where } from './analyze.js';
 
 const HELP = `rubberstamp: find the functions your tests call but never check
 
@@ -113,24 +113,29 @@ export async function main(argv, { out = process.stdout, err = process.stderr, c
 
     // 3. One run per function, with that function hollowed out.
     const timeout = o.timeout ?? Math.max(10_000, base.ms * 5);
+    const mutants = called.flatMap((f) => mutantsFor(f).map((m) => ({ f, ...m })));
     let done = 0;
     const progress = () => {
-      if (!o.json && out.isTTY) out.write(`\r  hollowing ${done}/${called.length}...`);
+      if (!o.json && out.isTTY) out.write(`\r  hollowing ${done}/${mutants.length}...`);
     };
     progress();
-    const runs = await pool(called.map((f) => () => runOnce(command, {
-      phase: 'mutant', root: cwd, namesFile, timeout, target: `${f.url}#${f.name}#${f.async ? 'async' : 'sync'}`,
+    const runs = await pool(mutants.map((m) => () => runOnce(command, {
+      phase: 'mutant', root: cwd, namesFile, timeout,
+      target: `${m.f.url}#${m.f.name}#${m.f.async ? 'async' : 'sync'}#${m.mode}`,
     })), o.concurrency, () => { done++; progress(); });
     if (!o.json && out.isTTY) out.write('\r\x1b[K');
 
-    const results = called.map((f, i) => ({
-      function: f.name === 'default' ? 'default export' : `${f.name}()`,
-      at: where(f.url, f.name, cwd),
-      calls: f.calls,
-      calledFrom: f.sites,
-      caught: !runs[i].passed,
-      timedOut: runs[i].timedOut,
-    }));
+    const results = called.map((f) => {
+      const mine = mutants.map((m, i) => ({ m, run: runs[i] })).filter((x) => x.m.f === f);
+      return {
+        function: f.name === 'default' ? 'default export' : `${f.name}()`,
+        at: where(f.url, f.name, cwd),
+        calls: f.calls,
+        calledFrom: f.sites,
+        caught: mine.every((x) => !x.run.passed),
+        survived: mine.filter((x) => x.run.passed).map((x) => x.m.says),
+      };
+    });
     const survivors = results.filter((r) => !r.caught);
 
     if (o.json) {
@@ -146,6 +151,7 @@ export async function main(argv, { out = process.stdout, err = process.stderr, c
     const width = Math.max(...survivors.map((r) => r.function.length));
     for (const r of survivors) {
       say(`  ${c('bold', r.function.padEnd(width))}  ${c('gray', r.at)}\n`);
+      say(`  ${' '.repeat(width)}  ${c('red', `tests still pass when it ${r.survived.join(', or when it ')}`)}\n`);
       if (r.calledFrom.length) say(`  ${' '.repeat(width)}  ${c('gray', `called from ${r.calledFrom.join(', ')}`)}\n`);
     }
     const caught = results.length - survivors.length;

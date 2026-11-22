@@ -16,7 +16,8 @@ if (phase && !globalThis.__rubberstamp) {
   const rootUrl = pathToFileURL(root.endsWith(sep) ? root : root + sep).href;
   const self = new URL('.', import.meta.url).href;
   const names = env.RUBBERSTAMP_NAMES ? JSON.parse(readFileSync(env.RUBBERSTAMP_NAMES, 'utf8')) : {};
-  const [targetUrl, targetName, targetAsync] = (env.RUBBERSTAMP_TARGET || '').split('#');
+  // url#name#async|sync#undefined|identity
+  const [targetUrl, targetName, targetAsync, targetMode] = (env.RUBBERSTAMP_TARGET || '').split('#');
 
   const TEST_FILE = /(\.|_|-)(test|spec)\.[cm]?[jt]sx?$|[\\/]__tests__[\\/]|[\\/]tests?[\\/]/;
   const records = new Map(); // key -> record, written once at exit
@@ -56,11 +57,18 @@ if (phase && !globalThis.__rubberstamp) {
       if (phase !== 'calls' && !hollow) return fn;
       return new Proxy(fn, {
         apply(target, thisArg, args) {
-          if (hollow) return targetAsync === 'async' ? Promise.resolve(undefined) : undefined;
+          if (hollow) {
+            const value = targetMode === 'identity' ? args[0] : undefined;
+            return targetAsync === 'async' ? Promise.resolve(value) : value;
+          }
           const result = Reflect.apply(target, thisArg, args);
-          const rec = put(`${url}#${name}`, () => ({ type: 'call', url, name, calls: 0, async: false, sites: [] }));
+          const rec = put(`${url}#${name}`, () => ({ type: 'call', url, name, calls: 0, async: false, returns: false, maxArgs: 0, sites: [] }));
           rec.calls++;
-          if (result && typeof result.then === 'function') rec.async = true;
+          rec.maxArgs = Math.max(rec.maxArgs, args.length);
+          if (result && typeof result.then === 'function') {
+            rec.async = true;
+            result.then((v) => { if (v !== undefined) rec.returns = true; }, () => {});
+          } else if (result !== undefined) rec.returns = true;
           if (rec.calls <= 50) {
             const site = testSite();
             if (site && !rec.sites.includes(site) && rec.sites.length < 5) rec.sites.push(site);

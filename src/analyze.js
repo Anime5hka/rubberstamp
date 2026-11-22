@@ -20,9 +20,11 @@ export function mergeCalls(records) {
   for (const r of records) {
     if (r.type !== 'call') continue;
     const key = `${r.url}#${r.name}`;
-    const e = byKey.get(key) ?? { url: r.url, name: r.name, calls: 0, async: false, sites: [] };
+    const e = byKey.get(key) ?? { url: r.url, name: r.name, calls: 0, async: false, returns: false, maxArgs: 0, sites: [] };
     e.calls += r.calls;
     e.async ||= r.async;
+    e.returns ||= Boolean(r.returns);
+    e.maxArgs = Math.max(e.maxArgs, r.maxArgs ?? 0);
     for (const s of r.sites) if (!e.sites.includes(s) && e.sites.length < 5) e.sites.push(s);
     byKey.set(key, e);
   }
@@ -57,4 +59,15 @@ export function where(url, name, root) {
   let line = null;
   try { line = definitionLine(readFileSync(file, 'utf8'), name); } catch {}
   return line ? `${rel}:${line}` : rel;
+}
+
+/**
+ * The ways to hollow out a called function: it always can return undefined (or do nothing), and a
+ * function that returns something and takes an argument can also hand its first argument back
+ * unchanged, which is how "applyCoupon(cart) did nothing" looks.
+ */
+export function mutantsFor(f) {
+  const list = [{ mode: 'undefined', says: f.returns ? `returns undefined` : 'does nothing' }];
+  if (f.returns && f.maxArgs > 0) list.push({ mode: 'identity', says: 'returns its first argument unchanged' });
+  return list;
 }
