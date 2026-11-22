@@ -130,7 +130,6 @@ export async function main(argv, { out = process.stdout, err = process.stderr, c
       return {
         function: f.name === 'default' ? 'default export' : `${f.name}()`,
         at: where(f.url, f.name, cwd),
-        calls: f.calls,
         calledFrom: f.sites,
         caught: mine.every((x) => !x.run.passed),
         survived: mine.filter((x) => x.run.passed).map((x) => x.m.says),

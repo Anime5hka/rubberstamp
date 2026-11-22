@@ -28,8 +28,8 @@ export function own(url, rootUrl = root, selfUrl = self) {
   return !/(^|\/)node_modules\//.test(path) && !TEST_FILE.test(`/${path}`) && /\.[cm]?[jt]sx?$/.test(path);
 }
 
-export function wrapperSource(url, fnNames = [], hasDefault = false) {
-  const orig = JSON.stringify(url + (url.includes('?') ? '&' : '?') + ORIG);
+export function wrapperSource(url, fnNames = [], hasDefault = false, origSpecifier = url) {
+  const orig = JSON.stringify(origSpecifier + (origSpecifier.includes('?') ? '&' : '?') + ORIG);
   const u = JSON.stringify(url);
   const lines = [
     `export * from ${orig};`,

@@ -31,5 +31,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Anime5hka/rubberstamp.git"
+  },
+  "exports": {
+    "./vitest": "./src/vitest.js",
+    "./package.json": "./package.json"
   }
 }

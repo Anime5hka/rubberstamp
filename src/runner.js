@@ -46,6 +46,8 @@ export async function runOnce(command, o) {
   // Set when rubberstamp itself runs under node --test; it would turn the inner runner into a child reporter.
   delete env.NODE_TEST_CONTEXT;
   env.RUBBERSTAMP_PHASE = o.phase;
+  // vitest 5's on-disk module cache would hand one phase's wrappers to the next run.
+  env.VITEST_FS_MODULE_CACHE = '0';
   env.RUBBERSTAMP_ROOT = o.root;
   env.RUBBERSTAMP_OUT = out;
   if (o.namesFile) env.RUBBERSTAMP_NAMES = o.namesFile;

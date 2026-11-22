@@ -21,10 +21,16 @@ if (phase && !globalThis.__rubberstamp) {
   const [targetUrl, targetName, targetAsync, targetMode] = (env.RUBBERSTAMP_TARGET || '').split('#');
 
   const TEST_FILE = /(\.|_|-)(test|spec)\.[cm]?[jt]sx?$|[\\/]__tests__[\\/]|[\\/]tests?[\\/]/;
-  const records = new Map(); // key -> record, written once at exit
+  const records = new Map(); // key -> record
   const put = (key, init) => {
     if (!records.has(key)) records.set(key, init());
     return records.get(key);
+  };
+  // Written as soon as something new is learned: test workers are often killed rather than exited
+  // (vitest, jest), so there may be no 'exit' event to wait for. Lines for the same key are merged.
+  const emit = (rec) => {
+    if (!env.RUBBERSTAMP_OUT) return;
+    try { appendFileSync(env.RUBBERSTAMP_OUT, `${JSON.stringify(rec)}\n`); } catch {}
   };
   const isClass = (fn) => /^class[\s{]/.test(Function.prototype.toString.call(fn));
 
@@ -48,9 +54,11 @@ if (phase && !globalThis.__rubberstamp) {
     seen(url, m) {
       if (phase !== 'names') return;
       const rec = put(url, () => ({ type: 'module', url, fns: [] }));
+      const before = rec.fns.length;
       for (const [k, v] of Object.entries(m)) {
         if (typeof v === 'function' && !isClass(v) && !rec.fns.includes(k)) rec.fns.push(k);
       }
+      if (rec.fns.length !== before) emit(rec);
     },
     wrap(url, name, fn) {
       if (typeof fn !== 'function') return fn;
@@ -64,15 +72,21 @@ if (phase && !globalThis.__rubberstamp) {
           }
           const result = Reflect.apply(target, thisArg, args);
           const rec = put(`${url}#${name}`, () => ({ type: 'call', url, name, calls: 0, async: false, returns: false, maxArgs: 0, sites: [] }));
+          const { maxArgs, async, returns } = rec;
+          const sites = rec.sites.length;
           rec.calls++;
           rec.maxArgs = Math.max(rec.maxArgs, args.length);
           if (result && typeof result.then === 'function') {
             rec.async = true;
-            result.then((v) => { if (v !== undefined) rec.returns = true; }, () => {});
+            result.then((v) => { if (v !== undefined && !rec.returns) { rec.returns = true; emit({ ...rec, calls: 0 }); } }, () => {});
           } else if (result !== undefined) rec.returns = true;
           if (rec.calls <= 50) {
             const site = testSite();
             if (site && !rec.sites.includes(site) && rec.sites.length < 5) rec.sites.push(site);
+          }
+          // Only the first line of a key carries the call; later ones just add what's new.
+          if (rec.calls === 1 || rec.maxArgs !== maxArgs || rec.async !== async || rec.returns !== returns || rec.sites.length !== sites) {
+            emit({ ...rec, calls: rec.calls === 1 ? 1 : 0 });
           }
           return result;
         },
@@ -116,15 +130,6 @@ if (phase && !globalThis.__rubberstamp) {
       }
     }
   };
-
-  if (env.RUBBERSTAMP_OUT) {
-    process.on('exit', () => {
-      if (!records.size) return;
-      try {
-        appendFileSync(env.RUBBERSTAMP_OUT, [...records.values()].map((r) => `${JSON.stringify(r)}\n`).join(''));
-      } catch {}
-    });
-  }
 
   register('./hooks.mjs', { parentURL: import.meta.url, data: { root: rootUrl, self, names } });
 }
