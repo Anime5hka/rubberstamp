@@ -37,7 +37,7 @@ const rows = lines.map((l, i) => {
   return `<text x="20" y="${top + i * lh}" class="l" style="animation-delay:${delay.toFixed(2)}s" xml:space="preserve">${spans(l)}</text>`;
 }).join('\n  ');
 
-process.stdout.write(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="rubberstamp output on a cart module: 3 of 6 functions can be hollowed out and every test still passes: applyCoupon when it returns its first argument unchanged, saveCart when it does nothing, formatPrice when it returns undefined">
+process.stdout.write(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="rubberstamp output on a cart module: 3 of 6 functions can be hollowed out and every test still passes: applyCoupon when it returns its first argument unchanged, saveCart when it does nothing, formatPrice when it returns undefined, its first argument or an empty string">
 <style>
   .l { font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; fill: #c9d1d9;${STATIC ? '' : ' opacity: 0; animation: in .25s ease-out forwards;'} }
   @keyframes in { to { opacity: 1; } }
