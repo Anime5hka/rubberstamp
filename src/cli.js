@@ -134,7 +134,8 @@ export async function main(argv, { out = process.stdout, err = process.stderr, c
     if (env.GITHUB_STEP_SUMMARY) {
       try { appendFileSync(env.GITHUB_STEP_SUMMARY, `${markdown(results, command)}\n`); } catch {}
     }
-    out.write(annotations(results, cwd, env.GITHUB_WORKSPACE || cwd));
+    // With --json / --markdown, stdout is the report; the runner reads workflow commands from stderr too.
+    (quiet ? err : out).write(annotations(results, cwd, env.GITHUB_WORKSPACE || cwd));
   };
 
   say(`${c('bold', 'rubberstamp')} ${c('gray', '·')} ${command.join(' ')}\n\n`);

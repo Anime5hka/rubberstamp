@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { mergeNames, mergeCalls, definitionLine, mutantsFor } from '../src/analyze.js';
 import { own, wrapperSource } from '../src/hooks.mjs';
 import { parseArgs, changedFiles, markdown, annotations } from '../src/cli.js';
-import { mkdtempSync, writeFileSync, appendFileSync, realpathSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, appendFileSync, realpathSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -207,4 +207,16 @@ test('annotations(): a warning per rubber-stamped function, on its line, relativ
     '::warning file=pkg/src/a.js,line=3,title=rubberstamp%3A a() is rubber-stamped::Every test still passes when it returns 0, or when it returns undefined.',
     '::warning file=pkg/b.js,title=rubberstamp%3A b() is rubber-stamped::Every test still passes when it does nothing.',
   ]);
+});
+
+test('on GitHub Actions: summary file and annotations; --json stays valid JSON (annotations go to stderr)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rs-gha-'));
+  const summary = join(dir, 'summary.md');
+  const env = { ...process.env, NO_COLOR: '1', GITHUB_ACTIONS: 'true', GITHUB_STEP_SUMMARY: summary };
+  delete env.NODE_TEST_CONTEXT;
+  const r = spawnSync(process.execPath, [bin, '--json', '--', process.execPath, '--test'], { cwd: join(root, 'examples', 'cart'), env, encoding: 'utf8', timeout: 120_000 });
+  assert.equal(r.status, 1, r.stderr);
+  assert.equal(JSON.parse(r.stdout).functions.length, 6);
+  assert.match(r.stderr, /^::warning file=.*cart\.js,line=21,title=rubberstamp%3A saveCart\(\) is rubber-stamped::/m);
+  assert.match(readFileSync(summary, 'utf8'), /3 of 6 functions can be hollowed out/);
 });
