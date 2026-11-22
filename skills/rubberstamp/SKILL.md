@@ -5,7 +5,7 @@ description: Check whether JavaScript/TypeScript tests really verify the code th
 
 # Checking tests with rubberstamp
 
-A test can call a function and still not check it: `assert.ok(result)` is true for almost anything, `doesNotThrow(() => save(x))` never looks at what was saved, a snapshot of the wrong thing, an assertion on a mock instead of the subject. Coverage counts all of these as tested. rubberstamp re-runs the suite with each called function hollowed out (returns `undefined`, or hands back its first argument unchanged). A function whose hollow version passes every test is *rubber-stamped*: no assertion depends on it.
+A test can call a function and still not check it: `assert.ok(result)` is true for almost anything, `doesNotThrow(() => save(x))` never looks at what was saved, a snapshot of the wrong thing, an assertion on a mock instead of the subject. Coverage counts all of these as tested. rubberstamp re-runs the suite with each called function hollowed out (returns `undefined`, hands back its first argument unchanged, or, for a function that always returns one type, `0`, `''`, `[]` or a constant `true` / `false`). A function whose hollow version passes every test is *rubber-stamped*: no assertion depends on it.
 
 Run it (Node ≥ 20.6, no install needed for node:test and mocha):
 
@@ -21,7 +21,7 @@ npx github:Anime5hka/rubberstamp --only <path of the module you changed> -- <the
 ## Workflow
 
 1. **Run it on what you touched**, with `--only`, after the tests pass normally.
-2. **Read each finding as a question**: "if `applyCoupon` returned the cart unchanged, which test should fail?" The message says how it was hollowed (`returns undefined`, `does nothing`, `returns its first argument unchanged`) and which test lines call it.
+2. **Read each finding as a question**: "if `applyCoupon` returned the cart unchanged, which test should fail?" The message says how it was hollowed (`returns undefined`, `does nothing`, `returns its first argument unchanged`, `returns 0`, `always returns true`...) and which test lines call it. `always returns true/false` means a predicate is only tested on one side: add the other case and the boundary.
 3. **Strengthen the existing test, don't add a new trivial one.** Assert the *effect*: the exact return value (`assert.equal(total(cart), 2250)`), the changed state (`assert.equal(store.get('c1'), …)`), the call a collaborator received. Replace `ok(x)`, `notEqual(x, null)`, `toBeDefined()` and `doesNotThrow` with an exact expectation.
 4. **Re-run the same command.** The function should now be "caught". Stop when the functions that matter are caught; you don't need 100%.
 5. **Leave legitimate survivors alone and say so.** A function that really returns its argument (a normalizer on already-normal input) or whose only job is a side effect nobody can observe will survive; mention it instead of writing a contorted test.
