@@ -36,14 +36,17 @@ export function wrapperSource(url, fnNames = [], hasDefault = false, origSpecifi
     `const rs = globalThis.__rubberstamp;`,
     `rs?.seen(${u}, m);`,
   ];
-  for (const name of fnNames) {
-    if (name === 'default') {
-      lines.push(`const __rs_default = rs ? rs.wrap(${u}, 'default', m.default) : m.default;`);
-      lines.push('export { __rs_default as default };');
-    } else if (IDENT.test(name)) {
-      lines.push(`export const ${name} = rs ? rs.wrap(${u}, ${JSON.stringify(name)}, m.${name}) : m.${name};`);
-    }
-  }
+  // Function declarations are hoisted, so in an import cycle the wrapped functions can be called
+  // before this module has run, just like the originals. `m.name` is read at call time for the
+  // same reason.
+  fnNames.forEach((name, i) => {
+    if (name !== 'default' && !IDENT.test(name)) return;
+    const fn = `__rs_${i}`;
+    const n = JSON.stringify(name);
+    lines.push(`export { ${fn} as ${name === 'default' ? 'default' : name} };`);
+    lines.push(`function ${fn}(...args) { return globalThis.__rubberstamp.invoke(${u}, ${n}, m[${n}], this, args, new.target); }`);
+    lines.push(`try { Object.defineProperty(${fn}, 'name', { value: m[${n}]?.name ?? ${n} }); } catch {}`);
+  });
   // `export *` never re-exports a default, so pass it through when it isn't wrapped.
   if (hasDefault && !fnNames.includes('default')) lines.push('export default m.default;');
   return lines.join('\n');

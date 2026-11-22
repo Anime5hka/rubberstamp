@@ -55,36 +55,45 @@ function create(env = process.env) {
     if (rec.fns.length !== before) emit(rec);
   }
 
+  const hollows = (url, name) => phase === 'mutant' && url === targetUrl && name === targetName;
+
+  /** One call of a wrapped function: hollow, recorded, or just passed through. */
+  function invoke(url, name, fn, thisArg, args, newTarget) {
+    if (hollows(url, name)) {
+      const value = targetMode === 'identity' ? args[0] : undefined;
+      return targetAsync === 'async' ? Promise.resolve(value) : value;
+    }
+    const result = newTarget ? Reflect.construct(fn, args) : Reflect.apply(fn, thisArg, args);
+    if (phase === 'calls') record(url, name, args, result);
+    return result;
+  }
+
+  function record(url, name, args, result) {
+    const rec = put(`${url}#${name}`, () => ({ type: 'call', url, name, calls: 0, async: false, returns: false, maxArgs: 0, sites: [] }));
+    const { maxArgs, async, returns } = rec;
+    const sites = rec.sites.length;
+    rec.calls++;
+    rec.maxArgs = Math.max(rec.maxArgs, args.length);
+    if (result && typeof result.then === 'function') {
+      rec.async = true;
+      result.then((v) => { if (v !== undefined && !rec.returns) { rec.returns = true; emit({ ...rec, calls: 0 }); } }, () => {});
+    } else if (result !== undefined) rec.returns = true;
+    if (rec.calls <= 50) {
+      const site = testSite();
+      if (site && !rec.sites.includes(site) && rec.sites.length < 5) rec.sites.push(site);
+    }
+    // Only the first line of a key carries the call; later ones just add what's new.
+    if (rec.calls === 1 || rec.maxArgs !== maxArgs || rec.async !== async || rec.returns !== returns || rec.sites.length !== sites) {
+      emit({ ...rec, calls: rec.calls === 1 ? 1 : 0 });
+    }
+  }
+
+  /** A function in place of `fn` that goes through invoke() (for CommonJS exports). */
   function wrap(url, name, fn) {
-    if (typeof fn !== 'function') return fn;
-    const hollow = phase === 'mutant' && url === targetUrl && name === targetName;
-    if (phase !== 'calls' && !hollow) return fn;
+    if (typeof fn !== 'function' || (phase !== 'calls' && !hollows(url, name))) return fn;
     return new Proxy(fn, {
-      apply(target, thisArg, args) {
-        if (hollow) {
-          const value = targetMode === 'identity' ? args[0] : undefined;
-          return targetAsync === 'async' ? Promise.resolve(value) : value;
-        }
-        const result = Reflect.apply(target, thisArg, args);
-        const rec = put(`${url}#${name}`, () => ({ type: 'call', url, name, calls: 0, async: false, returns: false, maxArgs: 0, sites: [] }));
-        const { maxArgs, async, returns } = rec;
-        const sites = rec.sites.length;
-        rec.calls++;
-        rec.maxArgs = Math.max(rec.maxArgs, args.length);
-        if (result && typeof result.then === 'function') {
-          rec.async = true;
-          result.then((v) => { if (v !== undefined && !rec.returns) { rec.returns = true; emit({ ...rec, calls: 0 }); } }, () => {});
-        } else if (result !== undefined) rec.returns = true;
-        if (rec.calls <= 50) {
-          const site = testSite();
-          if (site && !rec.sites.includes(site) && rec.sites.length < 5) rec.sites.push(site);
-        }
-        // Only the first line of a key carries the call; later ones just add what's new.
-        if (rec.calls === 1 || rec.maxArgs !== maxArgs || rec.async !== async || rec.returns !== returns || rec.sites.length !== sites) {
-          emit({ ...rec, calls: rec.calls === 1 ? 1 : 0 });
-        }
-        return result;
-      },
+      apply: (target, thisArg, args) => invoke(url, name, target, thisArg, args),
+      construct: (target, args) => invoke(url, name, target, undefined, args, target),
     });
   }
 
@@ -119,7 +128,7 @@ function create(env = process.env) {
     return exp;
   }
 
-  return { phase, seen, wrap, wrapExports };
+  return { phase, seen, wrap, invoke, wrapExports };
 }
 
 /** Is this one of the user's own modules (not a dependency, not a test, not rubberstamp)? */

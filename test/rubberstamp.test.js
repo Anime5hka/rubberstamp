@@ -50,6 +50,12 @@ test('TypeScript modules under Node\'s type stripping', { skip: major < 23 || (m
   assert.deepEqual(functions.map((f) => [f.function, f.caught, f.at]), [['label()', false, 'math.ts:2'], ['total()', true, 'math.ts:1']]);
 });
 
+test('import cycles: a wrapped function can be called before its module has run', () => {
+  const r = cli(['--json', '--', process.execPath, '--test', 'x.test.js'], join(root, 'test', 'fixtures', 'cycle'));
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout).functions.map((f) => [f.function, f.caught]), [['a()', true], ['useB()', true], ['b()', true]]);
+});
+
 test('a suite that fails without rubberstamp is reported, not analysed', () => {
   const r = cli(['--', process.execPath, '-e', 'process.exit(3)'], root);
   assert.equal(r.code, 1);
@@ -80,8 +86,8 @@ test('own(): your modules only, not tests, dependencies, or rubberstamp itself',
 test('wrapperSource(): re-exports everything, wraps the named functions, keeps a default', () => {
   const src = wrapperSource('file:///app/a.js', ['total', 'default', 'not-an-identifier'], true);
   assert.match(src, /export \* from "file:\/\/\/app\/a\.js\?rubberstamp-orig";/);
-  assert.match(src, /export const total = rs \? rs\.wrap\("file:\/\/\/app\/a\.js", "total", m\.total\) : m\.total;/);
-  assert.match(src, /export \{ __rs_default as default \};/);
+  assert.match(src, /export \{ __rs_0 as total \};\nfunction __rs_0\(\.\.\.args\) \{ return globalThis\.__rubberstamp\.invoke\("file:\/\/\/app\/a\.js", "total", m\["total"\], this, args, new\.target\); \}/);
+  assert.match(src, /export \{ __rs_1 as default \};/);
   assert.doesNotMatch(src, /not-an-identifier/);
   assert.match(wrapperSource('file:///app/a.js', [], true), /export default m\.default;/);
   assert.doesNotMatch(wrapperSource('file:///app/a.js', [], false), /default/);
