@@ -52,7 +52,8 @@ export function wrapperSource(url, fnNames = [], hasDefault = false, origSpecifi
 export async function load(url, context, next) {
   if (!own(url)) return next(url, context);
   const result = await next(url, context);
-  if (result.format !== 'module') return result;
+  // .ts files under Node's type stripping come back as 'module-typescript'; the wrapper itself is JS.
+  if (result.format !== 'module' && result.format !== 'module-typescript') return result;
   const source = String(result.source ?? '');
   const hasDefault = /\bexport\s+default\b|\bas\s+default\b|\bas\s+["']default["']/.test(source);
   return { format: 'module', source: wrapperSource(url, names[url], hasDefault), shortCircuit: true };

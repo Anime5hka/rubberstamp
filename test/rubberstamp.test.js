@@ -42,6 +42,14 @@ test('CommonJS modules (exports.x = ...) are hollowed out too', () => {
   assert.equal(functions.find((f) => f.function === 'saveCart()').at, 'cart.js:21');
 });
 
+const [major, minor] = process.versions.node.split('.').map(Number);
+test('TypeScript modules under Node\'s type stripping', { skip: major < 23 || (major === 23 && minor < 6) ? 'needs Node 23.6+' : false }, () => {
+  const r = cli(['--json', '--', process.execPath, '--test', 'math.test.ts'], join(root, 'test', 'fixtures', 'ts'));
+  assert.equal(r.code, 1, r.stderr);
+  const { functions } = JSON.parse(r.stdout);
+  assert.deepEqual(functions.map((f) => [f.function, f.caught, f.at]), [['label()', false, 'math.ts:2'], ['total()', true, 'math.ts:1']]);
+});
+
 test('a suite that fails without rubberstamp is reported, not analysed', () => {
   const r = cli(['--', process.execPath, '-e', 'process.exit(3)'], root);
   assert.equal(r.code, 1);
