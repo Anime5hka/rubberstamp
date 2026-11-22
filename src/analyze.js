@@ -20,12 +20,15 @@ export function mergeCalls(records) {
   for (const r of records) {
     if (r.type !== 'call') continue;
     const key = `${r.url}#${r.name}`;
-    const e = byKey.get(key) ?? { url: r.url, name: r.name, calls: 0, async: false, returns: false, maxArgs: 0, kinds: [], sites: [] };
+    const e = byKey.get(key) ?? { url: r.url, name: r.name, calls: 0, async: false, returns: false, maxArgs: 0, kinds: [], sites: [], files: [], anywhere: false };
     e.calls += r.calls;
     e.async ||= r.async;
     e.returns ||= Boolean(r.returns);
     e.maxArgs = Math.max(e.maxArgs, r.maxArgs ?? 0);
     for (const k of r.kinds ?? []) if (!e.kinds.includes(k)) e.kinds.push(k);
+    // Calls from node:test file processes are attributed to the file; any other process (mocha,
+    // vitest and jest workers, --test-isolation=none) means "could be any file".
+    if (r.entry) { if (!e.files.includes(r.entry)) e.files.push(r.entry); } else e.anywhere = true;
     for (const s of r.sites) if (!e.sites.includes(s) && e.sites.length < 5) e.sites.push(s);
     byKey.set(key, e);
   }

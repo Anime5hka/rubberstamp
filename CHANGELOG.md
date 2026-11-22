@@ -10,5 +10,6 @@ First release.
 - Reports where each function is defined and the test lines that call it.
 - node:test and mocha with no setup; a vitest plugin (`rubberstamp/vitest`) and a jest transformer (`rubberstamp/jest`).
 - ES modules, CommonJS (including compiled getters) and TypeScript (Node type stripping, vitest).
+- With node:test, a hollow run only runs the test files whose tests (or their subprocesses) call that function; `--run-all-files` turns this off.
 - Parallel runs (`--concurrency`), `--only`, `--changed <git ref>`, `--timeout`, `--json`, `--markdown`.
 - On GitHub Actions: the report in the job summary and a warning annotation on each rubber-stamped function's line.

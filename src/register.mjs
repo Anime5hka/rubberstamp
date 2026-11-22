@@ -14,6 +14,8 @@ if (env.RUBBERSTAMP_PHASE && !globalThis.__rubberstamp) {
   const self = new URL('.', import.meta.url).href;
   const names = env.RUBBERSTAMP_NAMES ? JSON.parse(readFileSync(env.RUBBERSTAMP_NAMES, 'utf8')) : {};
   const rs = createRequire(import.meta.url)('./runtime.cjs').create(env);
+  // A node:test file whose tests never call the hollowed function can't notice it: pass at once.
+  if (rs.irrelevant()) process.exit(0);
   globalThis.__rubberstamp = rs;
 
   // CommonJS modules don't go through the module hooks. Their exports object is mutable, though,

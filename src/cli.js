@@ -17,6 +17,8 @@ Usage: rubberstamp [options] -- <test command...>
   --only <text>      only hollow functions in files whose path contains <text>
   --changed <ref>    only hollow functions in files changed since a git ref (e.g. origin/main)
   --timeout <ms>     a run that takes longer counts as caught (default: 5x the normal run, min 10 s)
+  --run-all-files    node:test: run every test file in each hollow run, not only the files whose
+                     tests call the function (for test files that depend on each other's side effects)
   --json             print the result as JSON
   --markdown         print the result as a Markdown report (for PR comments)
   -h, --help         this help
@@ -36,7 +38,7 @@ export function parseArgs(argv) {
   const dash = argv.indexOf('--');
   const own = dash === -1 ? argv : argv.slice(0, dash);
   const command = dash === -1 ? [] : argv.slice(dash + 1);
-  const o = { concurrency: Math.max(1, Math.floor(availableParallelism() / 2)), only: null, changed: null, timeout: null, json: false, markdown: false, help: false };
+  const o = { concurrency: Math.max(1, Math.floor(availableParallelism() / 2)), only: null, changed: null, timeout: null, runAllFiles: false, json: false, markdown: false, help: false };
   for (let i = 0; i < own.length; i++) {
     const a = own[i];
     const value = () => {
@@ -54,6 +56,7 @@ export function parseArgs(argv) {
     else if (a === '--timeout') o.timeout = int();
     else if (a === '--json') o.json = true;
     else if (a === '--markdown') o.markdown = true;
+    else if (a === '--run-all-files') o.runAllFiles = true;
     else if (a === '-h' || a === '--help') o.help = true;
     else throw new Error(`unknown option ${a} (the test command goes after --)`);
   }
@@ -185,7 +188,10 @@ export async function main(argv, { out = process.stdout, err = process.stderr, c
     progress();
     const runs = await pool(mutants.map((m) => () => runOnce(command, {
       phase: 'mutant', root: cwd, namesFile, timeout,
-      target: JSON.stringify({ url: m.f.url, name: m.f.name, async: m.f.async, mode: m.mode }),
+      target: JSON.stringify({
+        url: m.f.url, name: m.f.name, async: m.f.async, mode: m.mode,
+        ...(o.runAllFiles || m.f.anywhere ? {} : { files: m.f.files }),
+      }),
     })), o.concurrency, () => { done++; progress(); });
     if (!quiet && out.isTTY) out.write('\r\x1b[K');
 

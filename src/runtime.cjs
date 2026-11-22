@@ -11,13 +11,40 @@ const { fileURLToPath } = require('node:url');
 const { relative } = require('node:path');
 
 const TEST_FILE = /(\.|_|-)(test|spec)\.[cm]?[jt]sx?$|[\\/]__tests__[\\/]|[\\/]tests?[\\/]/;
+
+/**
+ * The test file this process runs, if it is one of node:test's per-file processes (relative to
+ * root), else null. Strict on purpose: a helper script a test spawns must never be mistaken for one.
+ * A process started (at any depth) by a test file's process belongs to that file: RUBBERSTAMP_ENTRY
+ * is inherited, so what a test's subprocesses call is attributed to the test file that runs them.
+ */
+function entryTestFile(root, env = process.env, argv1 = process.argv[1]) {
+  if (env.RUBBERSTAMP_ENTRY) return { file: env.RUBBERSTAMP_ENTRY, inherited: true };
+  const own = ownTestFile(root, env, argv1);
+  return own && { file: own, inherited: false };
+}
+
+function ownTestFile(root, env, argv1) {
+  if (!env.NODE_TEST_CONTEXT || !argv1 || !/(\.|_|-)(test|spec)\.[cm]?[jt]sx?$/.test(argv1)) return null;
+  if (/[\\/]node_modules[\\/]/.test(argv1)) return null;
+  const rel = relative(root, argv1);
+  return rel.startsWith('..') ? null : rel;
+}
 const isClass = (fn) => /^class[\s{]/.test(Function.prototype.toString.call(fn));
 
 function create(env = process.env) {
   const phase = env.RUBBERSTAMP_PHASE;
   const root = env.RUBBERSTAMP_ROOT || process.cwd();
-  // { url, name, async, mode: 'undefined' | 'identity' | 'zero' | 'empty' | 'emptyArray' | 'true' | 'false' }
+  // { url, name, async, mode: 'undefined' | 'identity' | 'zero' | 'empty' | 'emptyArray' | 'true' | 'false',
+  //   files?: the node:test files whose processes called it }
   const target = env.RUBBERSTAMP_TARGET ? JSON.parse(env.RUBBERSTAMP_TARGET) : {};
+  const found = entryTestFile(root, env);
+  const entry = found?.file ?? null;
+  if (found && !found.inherited) env.RUBBERSTAMP_ENTRY = found.file; // for the processes it starts
+
+  /** In a mutant run: is this a node:test file process whose tests never call the target? */
+  const irrelevant = () => phase === 'mutant' && Array.isArray(target.files) && found !== null && !found.inherited
+    && !target.files.includes(entry);
 
   const records = new Map(); // key -> record
   const put = (key, init) => {
@@ -79,7 +106,7 @@ function create(env = process.env) {
   }
 
   function record(url, name, args, result) {
-    const rec = put(`${url}#${name}`, () => ({ type: 'call', url, name, calls: 0, async: false, returns: false, maxArgs: 0, kinds: [], sites: [] }));
+    const rec = put(`${url}#${name}`, () => ({ type: 'call', url, name, calls: 0, async: false, returns: false, maxArgs: 0, kinds: [], sites: [], entry }));
     const { maxArgs, async, returns } = rec;
     const kinds = rec.kinds.length;
     const sites = rec.sites.length;
@@ -167,7 +194,7 @@ function create(env = process.env) {
     return exp;
   }
 
-  return { phase, seen, wrap, invoke, members, wrapExports };
+  return { phase, seen, wrap, invoke, members, wrapExports, irrelevant };
 }
 
 /** What a hollowed-out function returns in each constant mode (a fresh array every call). */
@@ -210,4 +237,4 @@ function own(url, rootUrl, selfUrl) {
   return !/(^|\/)node_modules\//.test(path) && !TEST_FILE.test(`/${path}`) && /\.[cm]?[jt]sx?$/.test(path);
 }
 
-module.exports = { create, own, kindOf, TEST_FILE };
+module.exports = { create, own, kindOf, entryTestFile, TEST_FILE };

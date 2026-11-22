@@ -112,7 +112,7 @@ rubberstamp is *extreme mutation testing*: instead of flipping a `<` to `<=` eve
 1. **Wrapping without a parser.** `NODE_OPTIONS=--import` loads a preload into every Node process of your test command. For each ES module of yours (not tests, not `node_modules`), a module hook returns a small wrapper instead: `export * from './cart.js?orig'` plus an explicit `export const applyCoupon = wrap(...)` for each function. An explicit export beats `export *`, so the functions are swapped and every other export stays a live binding. CommonJS modules get their `module.exports` wrapped right after they run. vitest and jest do the same through the plugin and the transformer.
 2. **Run 1: names.** A normal run that records which exports are plain functions (not classes). If your suite fails here, rubberstamp stops: it needs a green suite to start from.
 3. **Run 2: calls.** Every function is wrapped in a `Proxy` that records whether the tests call it, how many arguments it gets, whether it returns anything (or a promise), and the first line in a test file on the call stack.
-4. **One run per hollow function.** For each called function: a run where it returns `undefined` (a resolved promise of `undefined` if it's async), if it normally returns something and takes arguments, a run where it returns its first argument; and if it's sync and always returned numbers, strings, arrays or booleans, runs where it returns `0`, `''`, `[]`, or always `true` and always `false`. Runs go in parallel. A run that fails, or takes 5× longer than normal, means the tests caught it.
+4. **One run per hollow function.** For each called function: a run where it returns `undefined` (a resolved promise of `undefined` if it's async), if it normally returns something and takes arguments, a run where it returns its first argument; and if it's sync and always returned numbers, strings, arrays or booleans, runs where it returns `0`, `''`, `[]`, or always `true` and always `false`. With node:test, each hollow run only runs the test files whose tests called that function (the others pass at once), which makes big suites much faster. Runs go in parallel. A run that fails, or takes 5× longer than normal, means the tests caught it.
 
 Calls from inside the same module go straight to the function, not through the export, so they aren't hollowed. That's deliberate: it keeps the question about the function's *contract*, as the rest of your code and your tests see it.
 
@@ -130,6 +130,7 @@ rubberstamp [options] -- <test command...>
 | `--timeout <ms>` | A run that takes longer counts as caught (default: 5× the normal run, at least 10 s) |
 | `--json` | Machine-readable result |
 | `--markdown` | Print the result as a Markdown report (a table you can paste into a PR comment) |
+| `--run-all-files` | node:test: run every test file in each hollow run. By default a hollow run skips the test files whose tests (and their subprocesses) never called that function. Use this if your test files depend on each other's side effects (one writes a DB row, a later file reads it) |
 
 Exit code: `0` if every called function is caught, `1` if any is rubber-stamped or the suite fails, `2` for usage errors.
 
@@ -176,7 +177,7 @@ No action or token needed: on GitHub Actions, rubberstamp adds its report to the
 
 - [x] Class methods (`Cart#total`, static `Cart.create`) and object-literal methods (`api.get`)
 - [x] More ways to hollow: `return 0` / `''` / `[]` / constant `true` / `false` by the type the function normally returns
-- [ ] Re-run only the test files that call the function (much faster on big suites)
+- [x] Re-run only the test files that call the function (node:test; vitest/jest/mocha still run everything)
 - [x] `--changed <ref>`: only functions in files changed since a git ref, for PR checks
 - [x] GitHub Actions: job summary + a warning annotation on each rubber-stamped function's line (no action needed); `--markdown` for PR comments
 - [x] An agent skill: "after writing tests, check them with rubberstamp"

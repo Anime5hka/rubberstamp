@@ -136,9 +136,9 @@ test('mergeNames / mergeCalls combine the records of several processes', () => {
   ]), { u: ['a', 'b'] });
   const [f] = mergeCalls([
     { type: 'call', url: 'u', name: 'a', calls: 2, async: false, returns: false, maxArgs: 1, sites: ['t.js:1'] },
-    { type: 'call', url: 'u', name: 'a', calls: 1, async: true, returns: true, maxArgs: 2, sites: ['t.js:1', 't.js:9'] },
+    { type: 'call', url: 'u', name: 'a', calls: 1, async: true, returns: true, maxArgs: 2, sites: ['t.js:1', 't.js:9'], entry: 't.js' },
   ]);
-  assert.deepEqual(f, { url: 'u', name: 'a', calls: 3, async: true, returns: true, maxArgs: 2, kinds: [], sites: ['t.js:1', 't.js:9'] });
+  assert.deepEqual(f, { url: 'u', name: 'a', calls: 3, async: true, returns: true, maxArgs: 2, kinds: [], sites: ['t.js:1', 't.js:9'], files: ['t.js'], anywhere: true });
 });
 
 test('mutantsFor(): type-aware modes only for sync functions that returned a single kind', () => {
@@ -219,4 +219,36 @@ test('on GitHub Actions: summary file and annotations; --json stays valid JSON (
   assert.equal(JSON.parse(r.stdout).functions.length, 6);
   assert.match(r.stderr, /^::warning file=.*cart\.js,line=21,title=rubberstamp%3A saveCart\(\) is rubber-stamped::/m);
   assert.match(readFileSync(summary, 'utf8'), /3 of 6 functions can be hollowed out/);
+});
+
+test('node:test: a hollow run only runs the test files whose tests call the function', () => {
+  const dir = join(root, 'test', 'fixtures', 'files');
+  const log = join(mkdtempSync(join(tmpdir(), 'rs-files-')), 'runs.log');
+  const run = (extra) => {
+    writeFileSync(log, '');
+    const env = { ...process.env, NO_COLOR: '1', RS_FIXTURE_LOG: log };
+    delete env.NODE_TEST_CONTEXT;
+    const r = spawnSync(process.execPath, [bin, '--json', '--concurrency', '1', ...extra, '--', process.execPath, '--test'], { cwd: dir, env, encoding: 'utf8', timeout: 120_000 });
+    assert.equal(r.status, 1, r.stderr);
+    return { functions: JSON.parse(r.stdout).functions.map((f) => [f.function, f.caught]), slowRuns: readFileSync(log, 'utf8').split('\n').filter(Boolean).length };
+  };
+  const fast = run([]);
+  const all = run(['--run-all-files']);
+  assert.deepEqual(fast.functions, [['price()', true], ['tax()', false]]);
+  assert.deepEqual(all.functions, fast.functions);
+  // names + calls + tax()'s hollow runs; price()'s hollow runs skip tax.test.js
+  assert.ok(fast.slowRuns < all.slowRuns, `${fast.slowRuns} vs ${all.slowRuns}`);
+});
+
+test('entryTestFile(): node:test file processes only; subprocesses inherit their test file', async () => {
+  const { createRequire } = await import('node:module');
+  const { entryTestFile } = createRequire(import.meta.url)('../src/runtime.cjs');
+  const ctx = { NODE_TEST_CONTEXT: 'child-v8' };
+  assert.deepEqual(entryTestFile('/app', ctx, '/app/test/a.test.js'), { file: 'test/a.test.js', inherited: false });
+  assert.equal(entryTestFile('/app', {}, '/app/test/a.test.js'), null, 'not under node --test');
+  assert.equal(entryTestFile('/app', ctx, '/app/test/helpers/server.js'), null, 'a helper script');
+  assert.equal(entryTestFile('/app', ctx, '/app/node_modules/x/a.test.js'), null);
+  assert.equal(entryTestFile('/app', ctx, '/elsewhere/a.test.js'), null);
+  assert.deepEqual(entryTestFile('/app', { ...ctx, RUBBERSTAMP_ENTRY: 'test/e2e.test.js' }, '/app/examples/x.test.js'),
+    { file: 'test/e2e.test.js', inherited: true });
 });

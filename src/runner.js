@@ -45,6 +45,7 @@ export async function runOnce(command, o) {
   const env = { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' };
   // Set when rubberstamp itself runs under node --test; it would turn the inner runner into a child reporter.
   delete env.NODE_TEST_CONTEXT;
+  delete env.RUBBERSTAMP_ENTRY; // when rubberstamp itself runs inside a checked test
   env.RUBBERSTAMP_PHASE = o.phase;
   // vitest 5's on-disk module cache would hand one phase's wrappers to the next run.
   env.VITEST_FS_MODULE_CACHE = '0';
