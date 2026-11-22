@@ -34,6 +34,14 @@ test('the cart example: exactly the three functions no test checks, and how', ()
   assert.deepEqual(byName['formatPrice()'].calledFrom, ['cart.test.js:25'], 'called through formatTotal');
 });
 
+test('CommonJS modules (exports.x = ...) are hollowed out too', () => {
+  const r = cli(['--json', '--', process.execPath, '--test'], join(root, 'test', 'fixtures', 'cjs'));
+  assert.equal(r.code, 1, r.stderr);
+  const { functions } = JSON.parse(r.stdout);
+  assert.deepEqual(functions.filter((f) => !f.caught).map((f) => f.function).sort(), ['applyCoupon()', 'formatPrice()', 'saveCart()']);
+  assert.equal(functions.find((f) => f.function === 'saveCart()').at, 'cart.js:21');
+});
+
 test('a suite that fails without rubberstamp is reported, not analysed', () => {
   const r = cli(['--', process.execPath, '-e', 'process.exit(3)'], root);
   assert.equal(r.code, 1);

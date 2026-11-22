@@ -42,6 +42,7 @@ export function definitionLine(source, name) {
       new RegExp(`\\bfunction\\s*\\*?\\s*${n}\\s*\\(`),
       new RegExp(`\\b(?:const|let|var)\\s+${n}\\s*=`),
       new RegExp(`\\bexport\\s*\\{[^}]*\\b${n}\\b`),
+      new RegExp(`\\bexports\\.${n}\\s*=`),
     ];
   const lines = source.split('\n');
   for (const re of patterns) {

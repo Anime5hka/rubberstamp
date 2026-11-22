@@ -3,7 +3,8 @@
 //   names   record which exports of each module are plain functions
 //   calls   record which of those functions the tests call, and from where
 //   mutant  hollow out one function (RUBBERSTAMP_TARGET) and let everything else run as usual
-import { register } from 'node:module';
+import Module, { register } from 'node:module';
+import { own } from './hooks.mjs';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { relative, sep } from 'node:path';
@@ -77,6 +78,43 @@ if (phase && !globalThis.__rubberstamp) {
         },
       });
     },
+  };
+
+  // CommonJS modules don't go through the module hooks. Their exports object is mutable, though,
+  // so it is wrapped right after the module has run, before anyone can require() it.
+  const rs = globalThis.__rubberstamp;
+  const realLoad = Module.prototype.load;
+  Module.prototype.load = function load(filename) {
+    realLoad.call(this, filename);
+    const url = pathToFileURL(filename).href;
+    if (!own(url, rootUrl, self)) return;
+    const exp = this.exports;
+    if (typeof exp === 'function') {
+      rs.seen(url, { default: exp });
+      this.exports = rs.wrap(url, 'default', exp);
+      return;
+    }
+    if (!exp || typeof exp !== 'object') return;
+    rs.seen(url, exp);
+    for (const key of Object.keys(exp)) {
+      const d = Object.getOwnPropertyDescriptor(exp, key);
+      if (!d) continue;
+      if ('value' in d) {
+        if (typeof d.value === 'function' && d.writable) exp[key] = rs.wrap(url, key, d.value);
+      } else if (d.get && d.configurable) {
+        // Compiled ES modules (TypeScript, esbuild) export through getters.
+        const get = d.get;
+        let last, wrapped;
+        Object.defineProperty(exp, key, {
+          ...d,
+          get() {
+            const v = get.call(this);
+            if (v !== last) { last = v; wrapped = rs.wrap(url, key, v); }
+            return wrapped;
+          },
+        });
+      }
+    }
   };
 
   if (env.RUBBERSTAMP_OUT) {
