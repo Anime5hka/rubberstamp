@@ -1,0 +1,60 @@
+// Pure helpers: merge what the runs recorded, and find where a function is defined.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { relative } from 'node:path';
+
+/** names-phase records (one per module per process) -> { moduleUrl: [function names] } */
+export function mergeNames(records) {
+  const names = {};
+  for (const r of records) {
+    if (r.type !== 'module') continue;
+    const list = (names[r.url] ??= []);
+    for (const fn of r.fns) if (!list.includes(fn)) list.push(fn);
+  }
+  return names;
+}
+
+/** calls-phase records -> one entry per called function, in a stable order */
+export function mergeCalls(records) {
+  const byKey = new Map();
+  for (const r of records) {
+    if (r.type !== 'call') continue;
+    const key = `${r.url}#${r.name}`;
+    const e = byKey.get(key) ?? { url: r.url, name: r.name, calls: 0, async: false, sites: [] };
+    e.calls += r.calls;
+    e.async ||= r.async;
+    for (const s of r.sites) if (!e.sites.includes(s) && e.sites.length < 5) e.sites.push(s);
+    byKey.set(key, e);
+  }
+  return [...byKey.values()].sort((a, b) => a.url.localeCompare(b.url) || a.name.localeCompare(b.name));
+}
+
+const escape = (s) => s.replace(/[$]/g, '\\$');
+
+/** 1-based line where `name` is defined in the module's source, or null. */
+export function definitionLine(source, name) {
+  const n = escape(name);
+  const patterns = name === 'default'
+    ? [/export\s+default\b/]
+    : [
+      new RegExp(`\\bfunction\\s*\\*?\\s*${n}\\s*\\(`),
+      new RegExp(`\\b(?:const|let|var)\\s+${n}\\s*=`),
+      new RegExp(`\\bexport\\s*\\{[^}]*\\b${n}\\b`),
+    ];
+  const lines = source.split('\n');
+  for (const re of patterns) {
+    const i = lines.findIndex((l) => re.test(l));
+    if (i >= 0) return i + 1;
+  }
+  return null;
+}
+
+/** "src/price.js:12" for a module URL and an export name. */
+export function where(url, name, root) {
+  let file;
+  try { file = fileURLToPath(url.split('?')[0]); } catch { return url; }
+  const rel = relative(root, file);
+  let line = null;
+  try { line = definitionLine(readFileSync(file, 'utf8'), name); } catch {}
+  return line ? `${rel}:${line}` : rel;
+}
