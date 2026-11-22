@@ -85,8 +85,10 @@ function create(env = process.env) {
     rec.calls++;
     rec.maxArgs = Math.max(rec.maxArgs, args.length);
     if (result && typeof result.then === 'function') {
+      // Never attach a handler to the caller's promise: that would mark a rejection as handled and
+      // change what the tests see. What it resolves to stays unknown, so assume a value.
       rec.async = true;
-      result.then((v) => { if (v !== undefined && !rec.returns) { rec.returns = true; emit({ ...rec, calls: 0 }); } }, () => {});
+      rec.returns = true;
     } else if (result !== undefined) rec.returns = true;
     if (rec.calls <= 50) {
       const site = testSite();

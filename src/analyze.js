@@ -75,7 +75,7 @@ export function where(url, name, root) {
  * unchanged, which is how "applyCoupon(cart) did nothing" looks.
  */
 export function mutantsFor(f) {
-  const list = [{ mode: 'undefined', says: f.returns ? `returns undefined` : 'does nothing' }];
-  if (f.returns && f.maxArgs > 0) list.push({ mode: 'identity', says: 'returns its first argument unchanged' });
+  const list = [{ mode: 'undefined', says: f.async ? 'resolves to undefined' : f.returns ? 'returns undefined' : 'does nothing' }];
+  if (f.returns && f.maxArgs > 0) list.push({ mode: 'identity', says: f.async ? 'resolves to its first argument unchanged' : 'returns its first argument unchanged' });
   return list;
 }

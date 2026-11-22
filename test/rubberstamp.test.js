@@ -76,6 +76,12 @@ test('methods of exported objects and classes (prototype and static)', () => {
   ]);
 });
 
+test('promises returned by your code are not observed (a rejection stays unhandled)', () => {
+  const r = cli(['--json', '--', process.execPath, 'send.test.js'], join(root, 'test', 'fixtures', 'promise'));
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout).functions.map((f) => [f.function, f.caught]), [['send()', true]]);
+});
+
 test('a suite that fails without rubberstamp is reported, not analysed', () => {
   const r = cli(['--', process.execPath, '-e', 'process.exit(3)'], root);
   assert.equal(r.code, 1);
