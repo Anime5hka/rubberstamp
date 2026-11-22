@@ -123,6 +123,7 @@ rubberstamp [options] -- <test command...>
 |---|---|
 | `--concurrency <n>` | Test runs at the same time (default: half your CPUs). Use 1 if your tests share a port or a database |
 | `--only <text>` | Only hollow functions in files whose path contains `<text>`, e.g. `--only src/billing` |
+| `--changed <ref>` | Only hollow functions in files changed since a git ref, e.g. `--changed origin/main` in a PR check |
 | `--timeout <ms>` | A run that takes longer counts as caught (default: 5× the normal run, at least 10 s) |
 | `--json` | Machine-readable result |
 
@@ -150,7 +151,7 @@ Exit code: `0` if every called function is caught, `1` if any is rubber-stamped 
 - [x] Class methods (`Cart#total`, static `Cart.create`) and object-literal methods (`api.get`)
 - [ ] More ways to hollow: `return 0` / `''` / `[]` / `false` by the type the function normally returns
 - [ ] Re-run only the test files that call the function (much faster on big suites)
-- [ ] `--changed`: only functions touched since a git ref, for PR checks
+- [x] `--changed <ref>`: only functions in files changed since a git ref, for PR checks
 - [ ] A GitHub Action that comments the rubber-stamped functions on a PR
 - [x] An agent skill: "after writing tests, check them with rubberstamp"
 

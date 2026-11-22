@@ -2,6 +2,8 @@
 // the ones your tests don't notice.
 import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir, availableParallelism } from 'node:os';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { runOnce } from './runner.js';
 import { mergeNames, mergeCalls, mutantsFor, where } from './analyze.js';
@@ -12,6 +14,7 @@ Usage: rubberstamp [options] -- <test command...>
 
   --concurrency <n>  test runs at the same time (default: half your CPUs)
   --only <text>      only hollow functions in files whose path contains <text>
+  --changed <ref>    only hollow functions in files changed since a git ref (e.g. origin/main)
   --timeout <ms>     a run that takes longer counts as caught (default: 5x the normal run, min 10 s)
   --json             print the result as JSON
   -h, --help         this help
@@ -28,7 +31,7 @@ export function parseArgs(argv) {
   const dash = argv.indexOf('--');
   const own = dash === -1 ? argv : argv.slice(0, dash);
   const command = dash === -1 ? [] : argv.slice(dash + 1);
-  const o = { concurrency: Math.max(1, Math.floor(availableParallelism() / 2)), only: null, timeout: null, json: false, help: false };
+  const o = { concurrency: Math.max(1, Math.floor(availableParallelism() / 2)), only: null, changed: null, timeout: null, json: false, help: false };
   for (let i = 0; i < own.length; i++) {
     const a = own[i];
     const value = () => {
@@ -42,12 +45,24 @@ export function parseArgs(argv) {
     };
     if (a === '--concurrency') o.concurrency = int();
     else if (a === '--only') o.only = value();
+    else if (a === '--changed') o.changed = value();
     else if (a === '--timeout') o.timeout = int();
     else if (a === '--json') o.json = true;
     else if (a === '-h' || a === '--help') o.help = true;
     else throw new Error(`unknown option ${a} (the test command goes after --)`);
   }
   return { o, command };
+}
+
+/** Absolute paths of tracked files changed since `ref` (committed or not), or null if git fails. */
+export function changedFiles(ref, cwd) {
+  try {
+    const top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8' }).trim();
+    const out = execFileSync('git', ['diff', '--name-only', ref, '--'], { cwd, encoding: 'utf8' });
+    return new Set(out.split('\n').filter(Boolean).map((f) => join(top, f)));
+  } catch {
+    return null;
+  }
 }
 
 const CODES = { red: 31, green: 32, yellow: 33, cyan: 36, gray: 90, bold: 1 };
@@ -103,6 +118,11 @@ export async function main(argv, { out = process.stdout, err = process.stderr, c
     }
     let called = mergeCalls(counted.records);
     if (o.only) called = called.filter((f) => f.url.includes(o.only));
+    if (o.changed) {
+      const changed = changedFiles(o.changed, cwd);
+      if (!changed) { err.write(`rubberstamp: git diff against ${o.changed} failed\n`); return 2; }
+      called = called.filter((f) => changed.has(fileURLToPath(f.url.split('?')[0])));
+    }
     const exported = Object.values(names).reduce((n, l) => n + l.length, 0);
     say(`  ${c('gray', `${Object.keys(names).length} modules, ${exported} exported functions, ${called.length} called by the tests`)}\n`);
     if (!called.length) {

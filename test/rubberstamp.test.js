@@ -5,7 +5,9 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mergeNames, mergeCalls, definitionLine, mutantsFor } from '../src/analyze.js';
 import { own, wrapperSource } from '../src/hooks.mjs';
-import { parseArgs } from '../src/cli.js';
+import { parseArgs, changedFiles } from '../src/cli.js';
+import { mkdtempSync, writeFileSync, appendFileSync, realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const bin = join(root, 'bin', 'rubberstamp.js');
@@ -144,4 +146,18 @@ test('definitionLine() finds function declarations, const arrows, export lists a
   assert.equal(definitionLine(src, '$q'), 4);
   assert.equal(definitionLine(src, 'default'), 6);
   assert.equal(definitionLine(src, 'missing'), null);
+});
+
+test('changedFiles(): tracked files changed since a ref, as absolute paths; null outside git', () => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'rs-git-')));
+  const git = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8',
+    env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.invalid', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.invalid' } });
+  writeFileSync(join(dir, 'a.js'), 'export const a = 1;\n');
+  writeFileSync(join(dir, 'b.js'), 'export const b = 1;\n');
+  git('init', '-q');
+  git('add', '-A');
+  git('commit', '-qm', 'init');
+  appendFileSync(join(dir, 'b.js'), '// changed\n');
+  assert.deepEqual([...changedFiles('HEAD', dir)], [join(dir, 'b.js')]);
+  assert.equal(changedFiles('no-such-ref', dir), null);
 });

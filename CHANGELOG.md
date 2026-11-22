@@ -10,4 +10,4 @@ First release.
 - Reports where each function is defined and the test lines that call it.
 - node:test and mocha with no setup; a vitest plugin (`rubberstamp/vitest`) and a jest transformer (`rubberstamp/jest`).
 - ES modules, CommonJS (including compiled getters) and TypeScript (Node type stripping, vitest).
-- Parallel runs (`--concurrency`), `--only`, `--timeout`, `--json`.
+- Parallel runs (`--concurrency`), `--only`, `--changed <git ref>`, `--timeout`, `--json`.
