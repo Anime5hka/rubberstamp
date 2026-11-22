@@ -129,6 +129,7 @@ rubberstamp [options] -- <test command...>
 | `--changed <ref>` | Only hollow functions in files changed since a git ref, e.g. `--changed origin/main` in a PR check |
 | `--timeout <ms>` | A run that takes longer counts as caught (default: 5× the normal run, at least 10 s) |
 | `--json` | Machine-readable result |
+| `--markdown` | Print the result as a Markdown report (a table you can paste into a PR comment) |
 
 Exit code: `0` if every called function is caught, `1` if any is rubber-stamped or the suite fails, `2` for usage errors.
 
@@ -150,6 +151,8 @@ jobs:
       - run: npm ci
       - run: npx github:Anime5hka/rubberstamp --changed origin/${{ github.base_ref }} -- npm test
 ```
+
+No action or token needed: on GitHub Actions, rubberstamp adds its report to the **job summary** and puts a **warning annotation on the line of each rubber-stamped function**, so reviewers see it right in the PR's *Files changed* tab.
 
 ## FAQ
 
@@ -175,7 +178,7 @@ jobs:
 - [x] More ways to hollow: `return 0` / `''` / `[]` / constant `true` / `false` by the type the function normally returns
 - [ ] Re-run only the test files that call the function (much faster on big suites)
 - [x] `--changed <ref>`: only functions in files changed since a git ref, for PR checks
-- [ ] A GitHub Action that comments the rubber-stamped functions on a PR
+- [x] GitHub Actions: job summary + a warning annotation on each rubber-stamped function's line (no action needed); `--markdown` for PR comments
 - [x] An agent skill: "after writing tests, check them with rubberstamp"
 
 ## See also

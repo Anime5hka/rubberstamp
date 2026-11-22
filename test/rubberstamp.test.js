@@ -5,7 +5,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mergeNames, mergeCalls, definitionLine, mutantsFor } from '../src/analyze.js';
 import { own, wrapperSource } from '../src/hooks.mjs';
-import { parseArgs, changedFiles } from '../src/cli.js';
+import { parseArgs, changedFiles, markdown, annotations } from '../src/cli.js';
 import { mkdtempSync, writeFileSync, appendFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
@@ -178,4 +178,33 @@ test('changedFiles(): tracked files changed since a ref, as absolute paths; null
   appendFileSync(join(dir, 'b.js'), '// changed\n');
   assert.deepEqual([...changedFiles('HEAD', dir)], [join(dir, 'b.js')]);
   assert.equal(changedFiles('no-such-ref', dir), null);
+});
+
+test('markdown(): a table of the rubber-stamped functions, pipes escaped; an all-clear line otherwise', () => {
+  const results = [
+    { function: 'a()', at: 'src/a.js:3', calledFrom: ['a.test.js:1'], caught: false, survived: ['returns undefined', "returns ''"] },
+    { function: 'b|c()', at: 'src/b.js', calledFrom: [], caught: false, survived: ['does nothing'] },
+    { function: 'd()', at: 'src/d.js:1', calledFrom: [], caught: true, survived: [] },
+  ];
+  const md = markdown(results, ['npm', 'test']);
+  assert.match(md, /### rubberstamp · `npm test`/);
+  assert.match(md, /2 of 3 functions/);
+  assert.match(md, /\| `a\(\)` \| `src\/a\.js:3` \| returns undefined, or returns '' \| `a\.test\.js:1` \|/);
+  assert.match(md, /`b\\\|c\(\)`/);
+  assert.match(md, /_your code_/);
+  assert.doesNotMatch(md, /d\(\)/);
+  assert.match(markdown([results[2]], ['x']), /All 1 functions are checked/);
+});
+
+test('annotations(): a warning per rubber-stamped function, on its line, relative to the workspace', () => {
+  const results = [
+    { function: 'a()', at: 'src/a.js:3', calledFrom: [], caught: false, survived: ['returns 0', 'returns undefined'] },
+    { function: 'b()', at: 'b.js', calledFrom: [], caught: false, survived: ['does nothing'] },
+    { function: 'c()', at: 'c.js:1', calledFrom: [], caught: true, survived: [] },
+  ];
+  const lines = annotations(results, '/repo/pkg', '/repo').trim().split('\n');
+  assert.deepEqual(lines, [
+    '::warning file=pkg/src/a.js,line=3,title=rubberstamp%3A a() is rubber-stamped::Every test still passes when it returns 0, or when it returns undefined.',
+    '::warning file=pkg/b.js,title=rubberstamp%3A b() is rubber-stamped::Every test still passes when it does nothing.',
+  ]);
 });

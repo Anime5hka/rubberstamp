@@ -4,7 +4,8 @@ import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir, availableParallelism } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
+import { join, relative, isAbsolute } from 'node:path';
+import { appendFileSync } from 'node:fs';
 import { runOnce } from './runner.js';
 import { mergeNames, mergeCalls, mutantsFor, where } from './analyze.js';
 
@@ -17,7 +18,11 @@ Usage: rubberstamp [options] -- <test command...>
   --changed <ref>    only hollow functions in files changed since a git ref (e.g. origin/main)
   --timeout <ms>     a run that takes longer counts as caught (default: 5x the normal run, min 10 s)
   --json             print the result as JSON
+  --markdown         print the result as a Markdown report (for PR comments)
   -h, --help         this help
+
+On GitHub Actions it also adds the report to the job summary and puts a warning on the line of each
+rubber-stamped function, so it shows up in the pull request's diff.
 
 For every exported function of yours that the tests call, rubberstamp runs the test command once with
 that function hollowed out (it returns undefined without running). If the tests still pass, nothing
@@ -31,7 +36,7 @@ export function parseArgs(argv) {
   const dash = argv.indexOf('--');
   const own = dash === -1 ? argv : argv.slice(0, dash);
   const command = dash === -1 ? [] : argv.slice(dash + 1);
-  const o = { concurrency: Math.max(1, Math.floor(availableParallelism() / 2)), only: null, changed: null, timeout: null, json: false, help: false };
+  const o = { concurrency: Math.max(1, Math.floor(availableParallelism() / 2)), only: null, changed: null, timeout: null, json: false, markdown: false, help: false };
   for (let i = 0; i < own.length; i++) {
     const a = own[i];
     const value = () => {
@@ -48,6 +53,7 @@ export function parseArgs(argv) {
     else if (a === '--changed') o.changed = value();
     else if (a === '--timeout') o.timeout = int();
     else if (a === '--json') o.json = true;
+    else if (a === '--markdown') o.markdown = true;
     else if (a === '-h' || a === '--help') o.help = true;
     else throw new Error(`unknown option ${a} (the test command goes after --)`);
   }
@@ -83,18 +89,53 @@ async function pool(jobs, n, onDone) {
   return results;
 }
 
+/** The report as Markdown: a table of the rubber-stamped functions, or a one-line all-clear. */
+export function markdown(results, command) {
+  const survivors = results.filter((r) => !r.caught);
+  const head = `### rubberstamp · \`${command.join(' ').replace(/`/g, "'")}\`\n\n`;
+  if (!results.length) return `${head}The tests don't call any exported function of yours, so there was nothing to hollow out.\n`;
+  if (!survivors.length) return `${head}✅ **All ${results.length} functions are checked**: hollowing any of them out fails a test.\n`;
+  const cell = (s) => String(s).replace(/\|/g, '\\|').replace(/\n/g, ' ');
+  const rows = survivors.map((r) => `| \`${cell(r.function)}\` | \`${cell(r.at)}\` | ${cell(r.survived.join(', or '))} | ${r.calledFrom.length ? r.calledFrom.map((s) => `\`${cell(s)}\``).join(', ') : '_your code_'} |`);
+  const caught = results.length - survivors.length;
+  return `${head}❌ **${survivors.length} of ${results.length} functions can be hollowed out and every test still passes**\n\n`
+    + `| Function | Defined at | Tests still pass when it… | Called from |\n|---|---|---|---|\n${rows.join('\n')}\n\n`
+    + `${caught} caught · ${survivors.length} rubber-stamped · ${Math.round((caught / results.length) * 100)}% of the functions your tests call are really checked.\n`;
+}
+
+/** GitHub Actions workflow commands: one warning per rubber-stamped function, on its line. */
+export function annotations(results, cwd, workspace = cwd) {
+  const esc = (s) => String(s).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+  const prop = (s) => esc(s).replace(/:/g, '%3A').replace(/,/g, '%2C');
+  return results.filter((r) => !r.caught).map((r) => {
+    const m = /^(.*?)(?::(\d+))?$/.exec(r.at);
+    const file = isAbsolute(m[1]) ? m[1] : relative(workspace, join(cwd, m[1]));
+    const where = `file=${prop(file)}${m[2] ? `,line=${m[2]}` : ''}`;
+    return `::warning ${where},title=${prop(`rubberstamp: ${r.function} is rubber-stamped`)}::${esc(`Every test still passes when it ${r.survived.join(', or when it ')}.`)}\n`;
+  }).join('');
+}
+
 function tail(output, n = 25) {
   return output.trimEnd().split('\n').slice(-n).map((l) => `  │ ${l}`).join('\n');
 }
 
-export async function main(argv, { out = process.stdout, err = process.stderr, color, cwd = process.cwd() } = {}) {
+export async function main(argv, { out = process.stdout, err = process.stderr, color, cwd = process.cwd(), env = process.env } = {}) {
   let parsed;
   try { parsed = parseArgs(argv); } catch (e) { err.write(`rubberstamp: ${e.message}\n\n${HELP}\n`); return 2; }
   const { o, command } = parsed;
   if (o.help) { out.write(`${HELP}\n`); return 0; }
   if (!command.length) { err.write(`rubberstamp: give the test command after --\n\n${HELP}\n`); return 2; }
   const c = painter(color ?? (Boolean(out.isTTY) && !process.env.NO_COLOR));
-  const say = (s) => { if (!o.json) out.write(s); };
+  const quiet = o.json || o.markdown;
+  const say = (s) => { if (!quiet) out.write(s); };
+  // On GitHub Actions: the report in the job summary, and a warning on each function's line.
+  const publish = (results) => {
+    if (env.GITHUB_ACTIONS !== 'true') return;
+    if (env.GITHUB_STEP_SUMMARY) {
+      try { appendFileSync(env.GITHUB_STEP_SUMMARY, `${markdown(results, command)}\n`); } catch {}
+    }
+    out.write(annotations(results, cwd, env.GITHUB_WORKSPACE || cwd));
+  };
 
   say(`${c('bold', 'rubberstamp')} ${c('gray', '·')} ${command.join(' ')}\n\n`);
 
@@ -128,6 +169,8 @@ export async function main(argv, { out = process.stdout, err = process.stderr, c
     if (!called.length) {
       say(`\n${c('yellow', '!')} The tests don't call any exported function of yours, so there is nothing to hollow out.\n`);
       if (o.json) out.write(`${JSON.stringify({ command, functions: [] }, null, 2)}\n`);
+      if (o.markdown) out.write(markdown([], command));
+      publish([]);
       return 0;
     }
 
@@ -136,14 +179,14 @@ export async function main(argv, { out = process.stdout, err = process.stderr, c
     const mutants = called.flatMap((f) => mutantsFor(f).map((m) => ({ f, ...m })));
     let done = 0;
     const progress = () => {
-      if (!o.json && out.isTTY) out.write(`\r  hollowing ${done}/${mutants.length}...`);
+      if (!quiet && out.isTTY) out.write(`\r  hollowing ${done}/${mutants.length}...`);
     };
     progress();
     const runs = await pool(mutants.map((m) => () => runOnce(command, {
       phase: 'mutant', root: cwd, namesFile, timeout,
       target: JSON.stringify({ url: m.f.url, name: m.f.name, async: m.f.async, mode: m.mode }),
     })), o.concurrency, () => { done++; progress(); });
-    if (!o.json && out.isTTY) out.write('\r\x1b[K');
+    if (!quiet && out.isTTY) out.write('\r\x1b[K');
 
     const results = called.map((f) => {
       const mine = mutants.map((m, i) => ({ m, run: runs[i] })).filter((x) => x.m.f === f);
@@ -156,7 +199,12 @@ export async function main(argv, { out = process.stdout, err = process.stderr, c
       };
     });
     const survivors = results.filter((r) => !r.caught);
+    publish(results);
 
+    if (o.markdown) {
+      out.write(markdown(results, command));
+      return survivors.length ? 1 : 0;
+    }
     if (o.json) {
       out.write(`${JSON.stringify({ command, functions: results }, null, 2)}\n`);
       return survivors.length ? 1 : 0;
