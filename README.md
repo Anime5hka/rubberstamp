@@ -162,6 +162,7 @@ jobs:
 ## Caveats
 
 - **Exported functions and the methods of exported objects and classes.** Private helpers are covered through the exports that call them. Getters, setters and frozen objects are left alone.
+- **Methods are replaced in place.** `api.get` and `Cart.prototype.total` become wrapper functions while rubberstamp runs, so code that compares them by identity (`hooks.afterEach === myHook`) sees a different function. Plain exported functions don't have this problem.
 - **A flaky suite gives flaky answers.** A random failure in a hollow run counts as "caught". If your suite is flaky, fix that first ([shakeout](https://github.com/Anime5hka/shakeout) can help).
 - **Side effects at import time** run once per test run, like they do now.
 - **jest**: CommonJS mode through babel-jest. Native ESM mode (`--experimental-vm-modules`) and ts-jest aren't supported yet.
