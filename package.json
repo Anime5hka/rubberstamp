@@ -1,6 +1,6 @@
 {
   "name": "rubberstamp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Find the functions your tests call but never check: hollows out each one and reports the ones no test notices.",
   "type": "module",
   "license": "MIT",

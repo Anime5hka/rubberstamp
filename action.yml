@@ -1,0 +1,41 @@
+name: rubberstamp
+description: Find the functions your tests call but never check. On pull requests, checks only the files the PR changes.
+author: Anime5hka
+branding:
+  icon: check-square
+  color: purple
+
+inputs:
+  command:
+    description: Your test command, run with bash (for example "npm test" or "npx vitest run").
+    default: npm test
+  changed:
+    description: >-
+      Only hollow functions in files changed since this git ref. "auto" (the default) uses the PR's base
+      branch on pull_request events and checks every function on other events. Set to "" to always check everything.
+    default: auto
+  args:
+    description: Extra rubberstamp options, for example "--concurrency 1 --only src/billing".
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: rubberstamp
+      shell: bash
+      env:
+        RS_COMMAND: ${{ inputs.command }}
+        RS_CHANGED: ${{ inputs.changed }}
+        RS_ARGS: ${{ inputs.args }}
+      run: |
+        ref="$RS_CHANGED"
+        if [ "$ref" = auto ]; then
+          ref=""
+          if [ -n "$GITHUB_BASE_REF" ]; then
+            # actions/checkout is shallow by default: fetch the base branch tip so git diff has something to compare with
+            git fetch --no-tags --depth=1 origin "+refs/heads/$GITHUB_BASE_REF:refs/remotes/origin/$GITHUB_BASE_REF"
+            ref="origin/$GITHUB_BASE_REF"
+          fi
+        fi
+        set -f  # RS_ARGS is split into words, but not glob-expanded
+        node "$GITHUB_ACTION_PATH/bin/rubberstamp.js" ${ref:+--changed "$ref"} $RS_ARGS -- bash -c "$RS_COMMAND"

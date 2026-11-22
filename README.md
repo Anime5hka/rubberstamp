@@ -136,7 +136,7 @@ Exit code: `0` if every called function is caught, `1` if any is rubber-stamped 
 
 ## In CI
 
-On pull requests, check only the functions the PR touches:
+Add the GitHub Action. On pull requests it checks only the functions in files the PR changes; on other events, everything:
 
 ```yaml
 # .github/workflows/rubberstamp.yml
@@ -146,14 +146,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }   # --changed needs the base branch
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm ci
-      - run: npx github:Anime5hka/rubberstamp --changed origin/${{ github.base_ref }} -- npm test
+      - uses: Anime5hka/rubberstamp@v0
+        with:
+          command: npm test            # default
+          # args: --concurrency 1      # any rubberstamp options
+          # changed: ''                # check every function, even on PRs
 ```
 
-No action or token needed: on GitHub Actions, rubberstamp adds its report to the **job summary** and puts a **warning annotation on the line of each rubber-stamped function**, so reviewers see it right in the PR's *Files changed* tab.
+No token needed: rubberstamp adds its report to the **job summary** and puts a **warning annotation on the line of each rubber-stamped function**, so reviewers see it right in the PR's *Files changed* tab.
+
+Without the action, it's one line on any CI:
+
+```sh
+npx github:Anime5hka/rubberstamp --changed origin/main -- npm test   # needs the base branch fetched
+```
 
 ## FAQ
 

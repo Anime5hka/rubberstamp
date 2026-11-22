@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0 (2026-11-22)
+
+- GitHub Action: `uses: Anime5hka/rubberstamp@v0`. On pull requests it fetches the base branch and checks only the functions in changed files.
+
 ## 0.1.0 (2026-11-22)
 
 First release.
