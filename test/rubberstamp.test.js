@@ -56,6 +56,14 @@ test('import cycles: a wrapped function can be called before its module has run'
   assert.deepEqual(JSON.parse(r.stdout).functions.map((f) => [f.function, f.caught]), [['a()', true], ['useB()', true], ['b()', true]]);
 });
 
+test('barrel default re-exports, constructors (instanceof) and functions with properties', () => {
+  const r = cli(['--json', '--', process.execPath, '--test', 'a.test.js'], join(root, 'test', 'fixtures', 'shapes'));
+  assert.equal([0, 1].includes(r.code), true, r.stderr);
+  const { functions } = JSON.parse(r.stdout);
+  assert.deepEqual(functions.map((f) => f.function).sort(), ['Point()', 'default export', 'default export', 'memo()']);
+  assert.equal(functions.find((f) => f.function === 'memo()').caught, true);
+});
+
 test('a suite that fails without rubberstamp is reported, not analysed', () => {
   const r = cli(['--', process.execPath, '-e', 'process.exit(3)'], root);
   assert.equal(r.code, 1);

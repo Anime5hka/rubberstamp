@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { sep } from 'node:path';
-import { own, wrapperSource } from './hooks.mjs';
+import { own, wrapperSource, hasDefaultExport } from './hooks.mjs';
 
 const ORIG = 'rubberstamp-orig';
 
@@ -36,7 +36,7 @@ export default function rubberstamp() {
       if (!own(url, rootUrl, self)) return null;
       const source = readFileSync(file, 'utf8');
       if (/\bmodule\.exports\b|\bexports\.[\w$]+\s*=/.test(source) && !/\bexport\b/.test(source)) return null;
-      const hasDefault = /\bexport\s+default\b|\bas\s+default\b|\bas\s+["']default["']/.test(source);
+      const hasDefault = hasDefaultExport(source);
       // The wrapper imports the original by file path, so vite resolves and transforms it as usual.
       return wrapperSource(url, names[url], hasDefault, file);
     },

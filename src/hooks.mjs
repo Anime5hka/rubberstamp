@@ -27,6 +27,11 @@ export function own(url, rootUrl = root, selfUrl = self) {
   return runtime.own(url, rootUrl, selfUrl);
 }
 
+/** Does this module source have a default export (including `export { default } from '...'`)? */
+export function hasDefaultExport(source) {
+  return /\bexport\s+default\b|\bas\s+["']?default\b|\bexport\s*\{[^}]*\bdefault\b/.test(source);
+}
+
 export function wrapperSource(url, fnNames = [], hasDefault = false, origSpecifier = url) {
   const orig = JSON.stringify(origSpecifier + (origSpecifier.includes('?') ? '&' : '?') + ORIG);
   const u = JSON.stringify(url);
@@ -45,7 +50,9 @@ export function wrapperSource(url, fnNames = [], hasDefault = false, origSpecifi
     const n = JSON.stringify(name);
     lines.push(`export { ${fn} as ${name === 'default' ? 'default' : name} };`);
     lines.push(`function ${fn}(...args) { return globalThis.__rubberstamp.invoke(${u}, ${n}, m[${n}], this, args, new.target); }`);
-    lines.push(`try { Object.defineProperty(${fn}, 'name', { value: m[${n}]?.name ?? ${n} }); } catch {}`);
+    // Same name, prototype and own properties as the original, so `instanceof` and `fn.cache`
+    // keep working. (In an import cycle the original may not exist yet; then there's nothing to copy.)
+    lines.push(`try { for (const k of Reflect.ownKeys(m[${n}])) if (k !== 'length' && k !== 'arguments' && k !== 'caller') Object.defineProperty(${fn}, k, Object.getOwnPropertyDescriptor(m[${n}], k)); } catch {}`);
   });
   // `export *` never re-exports a default, so pass it through when it isn't wrapped.
   if (hasDefault && !fnNames.includes('default')) lines.push('export default m.default;');
@@ -58,6 +65,6 @@ export async function load(url, context, next) {
   // .ts files under Node's type stripping come back as 'module-typescript'; the wrapper itself is JS.
   if (result.format !== 'module' && result.format !== 'module-typescript') return result;
   const source = String(result.source ?? '');
-  const hasDefault = /\bexport\s+default\b|\bas\s+default\b|\bas\s+["']default["']/.test(source);
+  const hasDefault = hasDefaultExport(source);
   return { format: 'module', source: wrapperSource(url, names[url], hasDefault), shortCircuit: true };
 }

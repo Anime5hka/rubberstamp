@@ -39,8 +39,9 @@ function create(env = process.env) {
       const m = /\(?((?:file:\/\/)?\/[^()]*?|[A-Za-z]:\\[^()]*?):(\d+):\d+\)?$/.exec(line.trim());
       if (!m) continue;
       const file = m[1].startsWith('file:') ? fileURLToPath(m[1]) : m[1];
-      if (/[\\/]node_modules[\\/]/.test(file) || !TEST_FILE.test(file)) continue;
-      return `${relative(root, file)}:${m[2]}`;
+      const rel = relative(root, file);
+      if (/[\\/]node_modules[\\/]/.test(file) || !TEST_FILE.test(`/${rel}`)) continue;
+      return `${rel}:${m[2]}`;
     }
     return null;
   }
