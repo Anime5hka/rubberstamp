@@ -7,8 +7,9 @@
 //
 // An explicit export takes precedence over `export *`, so only the functions are swapped and every
 // other export stays a live binding. The function names come from an earlier run (`names`).
+import runtime from './runtime.cjs';
+
 const ORIG = 'rubberstamp-orig';
-const TEST_FILE = /(\.|_|-)(test|spec)\.[cm]?[jt]sx?$|[\\/]__tests__[\\/]|[\\/]tests?[\\/]/;
 const IDENT = /^[A-Za-z_$][\w$]*$/;
 
 let root = '';
@@ -23,9 +24,7 @@ export function initialize(data) {
 
 /** Is this one of the user's own modules (not a dependency, not a test, not us)? */
 export function own(url, rootUrl = root, selfUrl = self) {
-  if (!url.startsWith(rootUrl) || url.startsWith(selfUrl) || url.includes(ORIG)) return false;
-  const path = url.slice(rootUrl.length).split('?')[0];
-  return !/(^|\/)node_modules\//.test(path) && !TEST_FILE.test(`/${path}`) && /\.[cm]?[jt]sx?$/.test(path);
+  return runtime.own(url, rootUrl, selfUrl);
 }
 
 export function wrapperSource(url, fnNames = [], hasDefault = false, origSpecifier = url) {
