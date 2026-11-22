@@ -21,7 +21,7 @@
   <text x="20" y="252" class="l" style="animation-delay:1.86s" xml:space="preserve">      <tspan fill="#ff7b72">tests still pass when it does nothing</tspan></text>
   <text x="20" y="272" class="l" style="animation-delay:1.98s" xml:space="preserve">      <tspan fill="#8b949e">called from cart.test.js:30</tspan></text>
   <text x="20" y="292" class="l" style="animation-delay:2.10s" xml:space="preserve">  <tspan font-weight="700" fill="#f0f6fc">formatPrice()</tspan>  <tspan fill="#8b949e">price.js:1</tspan></text>
-  <text x="20" y="312" class="l" style="animation-delay:2.22s" xml:space="preserve">      <tspan fill="#ff7b72">tests still pass when it returns undefined, or when it returns its first argument unchanged</tspan></text>
+  <text x="20" y="312" class="l" style="animation-delay:2.22s" xml:space="preserve">      <tspan fill="#ff7b72">tests still pass when it returns undefined, or when it returns its first argument unchanged, or when it returns ''</tspan></text>
   <text x="20" y="332" class="l" style="animation-delay:2.34s" xml:space="preserve">      <tspan fill="#8b949e">called from cart.test.js:25</tspan></text>
   <text x="20" y="352" class="l" style="animation-delay:2.46s" xml:space="preserve"></text>
   <text x="20" y="372" class="l" style="animation-delay:2.58s" xml:space="preserve">  <tspan fill="#7ee787">3 caught</tspan> <tspan fill="#8b949e">·</tspan> <tspan fill="#ff7b72">3 rubber-stamped</tspan> <tspan fill="#8b949e">· 50% of the functions your tests call are really checked</tspan></text>

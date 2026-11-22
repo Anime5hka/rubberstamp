@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/demo.svg" alt="rubberstamp on a cart module: 3 of 6 functions can be hollowed out and every test still passes. applyCoupon when it returns its first argument unchanged, saveCart when it does nothing, formatPrice when it returns undefined" width="900">
+  <img src="assets/demo.svg" alt="rubberstamp on a cart module: 3 of 6 functions can be hollowed out and every test still passes. applyCoupon when it returns its first argument unchanged, saveCart when it does nothing, formatPrice when it returns undefined, its first argument or an empty string" width="900">
 </p>
 
 <p align="center">
@@ -55,7 +55,7 @@ npx github:Anime5hka/rubberstamp -- npm test
 
 Everything after `--` is your normal test command. node:test and mocha work as they are. vitest and jest need one line of config, see [Setup](#setup).
 
-rubberstamp runs your suite once to see which of your exported functions the tests call. Then it runs the suite again once per function, with that function **hollowed out**: it returns `undefined` without running, or hands back its first argument unchanged, which is what "did nothing" looks like for a function like `applyCoupon(cart)`. A function whose hollow version passes every test is *rubber-stamped*.
+rubberstamp runs your suite once to see which of your exported functions the tests call. Then it runs the suite again once per function, with that function **hollowed out**: it returns `undefined` without running, or hands back its first argument unchanged, which is what "did nothing" looks like for a function like `applyCoupon(cart)`. A function that always returned one type also gets that type's "nothing": `0`, `''`, `[]`, or a constant `true` / `false`. A function whose hollow version passes every test is *rubber-stamped*.
 
 ## Setup
 
@@ -80,6 +80,8 @@ From the [cart example](examples/cart):
 | `saveCart(store, cart)` | `assert.doesNotThrow(...)` | does nothing | nobody reads the store |
 | `formatPrice(cents)` | `formatTotal(cart).startsWith('Total:')` | returns `undefined` | `"Total: undefined"` starts with `Total:` |
 | `total`, `addItem`, `formatTotal` | real assertions | — | caught ✓ |
+
+Predicates are a classic: `assert.ok(isAdult(30))` never tries a minor, so `isAdult()` survives as **always returns true**. And `assert.ok(Array.isArray(tags('a,b')))` lets `tags()` survive as **returns []**.
 
 **In the wild.** We ran rubberstamp on our own [raceloom](https://github.com/Anime5hka/raceloom) (39 tests). It found `formatError()`: every test still passed when it returned the error object itself, because a template string turns an `Error` into `"AssertionError: ..."` anyway. The one-line summary it exists for was never checked. [Fixed with two tests](https://github.com/Anime5hka/raceloom/blob/main/test/format.test.js). It also found `Sim#clearInterval()`: a test called it, but nothing checked that the interval stopped. On [shakeout](https://github.com/Anime5hka/shakeout) it found that nothing pinned the hash behind its replayable seeds: `hash32()` could return its input unchanged and every test still passed. [Fixed](https://github.com/Anime5hka/shakeout/blob/main/test/unit.test.js). On [sqlloom](https://github.com/Anime5hka/sqlloom) (a 6-minute suite against a real Postgres) it found `dbError()`, which digs the Postgres error out of an ORM's wrapper: it could return `undefined` and all 29 tests still passed. [Fixed](https://github.com/Anime5hka/sqlloom/blob/main/test/errors.test.js).
 
@@ -110,7 +112,7 @@ rubberstamp is *extreme mutation testing*: instead of flipping a `<` to `<=` eve
 1. **Wrapping without a parser.** `NODE_OPTIONS=--import` loads a preload into every Node process of your test command. For each ES module of yours (not tests, not `node_modules`), a module hook returns a small wrapper instead: `export * from './cart.js?orig'` plus an explicit `export const applyCoupon = wrap(...)` for each function. An explicit export beats `export *`, so the functions are swapped and every other export stays a live binding. CommonJS modules get their `module.exports` wrapped right after they run. vitest and jest do the same through the plugin and the transformer.
 2. **Run 1: names.** A normal run that records which exports are plain functions (not classes). If your suite fails here, rubberstamp stops: it needs a green suite to start from.
 3. **Run 2: calls.** Every function is wrapped in a `Proxy` that records whether the tests call it, how many arguments it gets, whether it returns anything (or a promise), and the first line in a test file on the call stack.
-4. **One run per hollow function.** For each called function: a run where it returns `undefined` (a resolved promise of `undefined` if it's async), and, if it normally returns something and takes arguments, a run where it returns its first argument. Runs go in parallel. A run that fails, or takes 5× longer than normal, means the tests caught it.
+4. **One run per hollow function.** For each called function: a run where it returns `undefined` (a resolved promise of `undefined` if it's async), if it normally returns something and takes arguments, a run where it returns its first argument; and if it's sync and always returned numbers, strings, arrays or booleans, runs where it returns `0`, `''`, `[]`, or always `true` and always `false`. Runs go in parallel. A run that fails, or takes 5× longer than normal, means the tests caught it.
 
 Calls from inside the same module go straight to the function, not through the export, so they aren't hollowed. That's deliberate: it keeps the question about the function's *contract*, as the rest of your code and your tests see it.
 
@@ -170,7 +172,7 @@ jobs:
 ## Roadmap
 
 - [x] Class methods (`Cart#total`, static `Cart.create`) and object-literal methods (`api.get`)
-- [ ] More ways to hollow: `return 0` / `''` / `[]` / `false` by the type the function normally returns
+- [x] More ways to hollow: `return 0` / `''` / `[]` / constant `true` / `false` by the type the function normally returns
 - [ ] Re-run only the test files that call the function (much faster on big suites)
 - [x] `--changed <ref>`: only functions in files changed since a git ref, for PR checks
 - [ ] A GitHub Action that comments the rubber-stamped functions on a PR

@@ -20,11 +20,12 @@ export function mergeCalls(records) {
   for (const r of records) {
     if (r.type !== 'call') continue;
     const key = `${r.url}#${r.name}`;
-    const e = byKey.get(key) ?? { url: r.url, name: r.name, calls: 0, async: false, returns: false, maxArgs: 0, sites: [] };
+    const e = byKey.get(key) ?? { url: r.url, name: r.name, calls: 0, async: false, returns: false, maxArgs: 0, kinds: [], sites: [] };
     e.calls += r.calls;
     e.async ||= r.async;
     e.returns ||= Boolean(r.returns);
     e.maxArgs = Math.max(e.maxArgs, r.maxArgs ?? 0);
+    for (const k of r.kinds ?? []) if (!e.kinds.includes(k)) e.kinds.push(k);
     for (const s of r.sites) if (!e.sites.includes(s) && e.sites.length < 5) e.sites.push(s);
     byKey.set(key, e);
   }
@@ -69,13 +70,24 @@ export function where(url, name, root) {
   return line ? `${rel}:${line}` : rel;
 }
 
+// A function that always returns one kind of value can also be hollowed to that kind's "nothing".
+const BY_KIND = {
+  number: [{ mode: 'zero', says: 'returns 0' }],
+  string: [{ mode: 'empty', says: "returns ''" }],
+  array: [{ mode: 'emptyArray', says: 'returns []' }],
+  boolean: [{ mode: 'true', says: 'always returns true' }, { mode: 'false', says: 'always returns false' }],
+};
+
 /**
- * The ways to hollow out a called function: it always can return undefined (or do nothing), and a
+ * The ways to hollow out a called function: it always can return undefined (or do nothing); a
  * function that returns something and takes an argument can also hand its first argument back
- * unchanged, which is how "applyCoupon(cart) did nothing" looks.
+ * unchanged, which is how "applyCoupon(cart) did nothing" looks; and a sync function that only ever
+ * returned numbers, strings, arrays or booleans can return 0, '', [] or a constant true/false, which
+ * is how "total() is never compared to a number" or "isValid() is only tested on valid input" looks.
  */
 export function mutantsFor(f) {
   const list = [{ mode: 'undefined', says: f.async ? 'resolves to undefined' : f.returns ? 'returns undefined' : 'does nothing' }];
   if (f.returns && f.maxArgs > 0) list.push({ mode: 'identity', says: f.async ? 'resolves to its first argument unchanged' : 'returns its first argument unchanged' });
+  if (!f.async && f.kinds?.length === 1) list.push(...(BY_KIND[f.kinds[0]] ?? []));
   return list;
 }

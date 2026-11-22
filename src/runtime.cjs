@@ -16,7 +16,7 @@ const isClass = (fn) => /^class[\s{]/.test(Function.prototype.toString.call(fn))
 function create(env = process.env) {
   const phase = env.RUBBERSTAMP_PHASE;
   const root = env.RUBBERSTAMP_ROOT || process.cwd();
-  // { url, name, async, mode: 'undefined' | 'identity' }
+  // { url, name, async, mode: 'undefined' | 'identity' | 'zero' | 'empty' | 'emptyArray' | 'true' | 'false' }
   const target = env.RUBBERSTAMP_TARGET ? JSON.parse(env.RUBBERSTAMP_TARGET) : {};
 
   const records = new Map(); // key -> record
@@ -70,7 +70,7 @@ function create(env = process.env) {
   /** One call of a wrapped function: hollow, recorded, or just passed through. */
   function invoke(url, name, fn, thisArg, args, newTarget) {
     if (hollows(url, name)) {
-      const value = target.mode === 'identity' ? args[0] : undefined;
+      const value = target.mode === 'identity' ? args[0] : CONSTANT[target.mode]?.();
       return target.async ? Promise.resolve(value) : value;
     }
     const result = newTarget ? Reflect.construct(fn, args) : Reflect.apply(fn, thisArg, args);
@@ -79,8 +79,9 @@ function create(env = process.env) {
   }
 
   function record(url, name, args, result) {
-    const rec = put(`${url}#${name}`, () => ({ type: 'call', url, name, calls: 0, async: false, returns: false, maxArgs: 0, sites: [] }));
+    const rec = put(`${url}#${name}`, () => ({ type: 'call', url, name, calls: 0, async: false, returns: false, maxArgs: 0, kinds: [], sites: [] }));
     const { maxArgs, async, returns } = rec;
+    const kinds = rec.kinds.length;
     const sites = rec.sites.length;
     rec.calls++;
     rec.maxArgs = Math.max(rec.maxArgs, args.length);
@@ -89,13 +90,17 @@ function create(env = process.env) {
       // change what the tests see. What it resolves to stays unknown, so assume a value.
       rec.async = true;
       rec.returns = true;
-    } else if (result !== undefined) rec.returns = true;
+    } else if (result !== undefined) {
+      rec.returns = true;
+      const kind = kindOf(result);
+      if (!rec.kinds.includes(kind)) rec.kinds.push(kind);
+    }
     if (rec.calls <= 50) {
       const site = testSite();
       if (site && !rec.sites.includes(site) && rec.sites.length < 5) rec.sites.push(site);
     }
     // Only the first line of a key carries the call; later ones just add what's new.
-    if (rec.calls === 1 || rec.maxArgs !== maxArgs || rec.async !== async || rec.returns !== returns || rec.sites.length !== sites) {
+    if (rec.calls === 1 || rec.maxArgs !== maxArgs || rec.async !== async || rec.returns !== returns || rec.kinds.length !== kinds || rec.sites.length !== sites) {
       emit({ ...rec, calls: rec.calls === 1 ? 1 : 0 });
     }
   }
@@ -165,6 +170,16 @@ function create(env = process.env) {
   return { phase, seen, wrap, invoke, members, wrapExports };
 }
 
+/** What a hollowed-out function returns in each constant mode (a fresh array every call). */
+const CONSTANT = { zero: () => 0, empty: () => '', emptyArray: () => [], true: () => true, false: () => false };
+
+/** The kind of a returned value, as far as the type-aware mutants care. */
+function kindOf(v) {
+  if (Array.isArray(v)) return 'array';
+  const t = typeof v;
+  return t === 'number' || t === 'string' || t === 'boolean' ? t : 'other';
+}
+
 const PLAIN = new Set([Object.prototype, null]);
 const SKIP_STATIC = new Set(['length', 'name', 'prototype', 'arguments', 'caller']);
 
@@ -195,4 +210,4 @@ function own(url, rootUrl, selfUrl) {
   return !/(^|\/)node_modules\//.test(path) && !TEST_FILE.test(`/${path}`) && /\.[cm]?[jt]sx?$/.test(path);
 }
 
-module.exports = { create, own, TEST_FILE };
+module.exports = { create, own, kindOf, TEST_FILE };

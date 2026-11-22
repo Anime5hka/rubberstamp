@@ -29,7 +29,7 @@ test('the cart example: exactly the three functions no test checks, and how', ()
   const survivors = functions.filter((f) => !f.caught).map((f) => [f.function, f.survived]);
   assert.deepEqual(survivors.sort(), [
     ['applyCoupon()', ['returns its first argument unchanged']],
-    ['formatPrice()', ['returns undefined', 'returns its first argument unchanged']],
+    ['formatPrice()', ['returns undefined', 'returns its first argument unchanged', "returns ''"]],
     ['saveCart()', ['does nothing']],
   ]);
   assert.equal(byName['saveCart()'].at, 'cart.js:21');
@@ -75,6 +75,15 @@ test('methods of exported objects and classes (prototype and static)', () => {
     ['Cart#total()', 'shop.js:9', false],
     ['prices.label()', 'shop.js:3', false],
     ['prices.net()', 'shop.js:2', true],
+  ]);
+});
+
+test('type-aware hollowing: 0, \'\', [] and constant true/false for functions that return one kind', () => {
+  const r = cli(['--json', '--', process.execPath, '--test'], join(root, 'test', 'fixtures', 'kinds'));
+  assert.equal(r.code, 1, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout).functions.filter((f) => !f.caught).map((f) => [f.function, f.survived]), [
+    ['isAdult()', ['returns its first argument unchanged', 'always returns true']],
+    ['tags()', ['returns []']],
   ]);
 });
 
@@ -129,7 +138,16 @@ test('mergeNames / mergeCalls combine the records of several processes', () => {
     { type: 'call', url: 'u', name: 'a', calls: 2, async: false, returns: false, maxArgs: 1, sites: ['t.js:1'] },
     { type: 'call', url: 'u', name: 'a', calls: 1, async: true, returns: true, maxArgs: 2, sites: ['t.js:1', 't.js:9'] },
   ]);
-  assert.deepEqual(f, { url: 'u', name: 'a', calls: 3, async: true, returns: true, maxArgs: 2, sites: ['t.js:1', 't.js:9'] });
+  assert.deepEqual(f, { url: 'u', name: 'a', calls: 3, async: true, returns: true, maxArgs: 2, kinds: [], sites: ['t.js:1', 't.js:9'] });
+});
+
+test('mutantsFor(): type-aware modes only for sync functions that returned a single kind', () => {
+  const modes = (f) => mutantsFor({ returns: true, maxArgs: 0, ...f }).map((m) => m.mode);
+  assert.deepEqual(modes({ kinds: ['number'] }), ['undefined', 'zero']);
+  assert.deepEqual(modes({ kinds: ['boolean'] }), ['undefined', 'true', 'false']);
+  assert.deepEqual(modes({ kinds: ['string', 'number'] }), ['undefined']);
+  assert.deepEqual(modes({ kinds: ['other'] }), ['undefined']);
+  assert.deepEqual(modes({ kinds: ['array'], async: true }), ['undefined']);
 });
 
 test('mutantsFor(): identity only for functions that return something and take an argument', () => {
