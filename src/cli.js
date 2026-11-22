@@ -31,8 +31,8 @@ that function hollowed out (it returns undefined without running). If the tests 
 checks what that function does.
 
 Examples:
-  npx rubberstamp -- node --test
-  npx rubberstamp --only src/cart -- npx mocha`;
+  npx github:Anime5hka/rubberstamp -- node --test
+  npx github:Anime5hka/rubberstamp --only src/cart -- npx mocha`;
 
 export function parseArgs(argv) {
   const dash = argv.indexOf('--');
